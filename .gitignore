@@ -1,0 +1,43 @@
+# Build
+build/
+build.backup/
+*.exe
+*.o
+*.obj
+*.dll
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*_autogen/
+*.cmake
+!CMakeLists.txt
+
+# IDE
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Qt
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Archive
+*.zip
+*.7z
+
+# Logs
+debug.log

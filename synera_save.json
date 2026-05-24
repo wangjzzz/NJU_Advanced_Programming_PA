@@ -1,0 +1,92 @@
+{
+    "equips": [
+        1
+    ],
+    "gold": 36,
+    "hp": 100,
+    "popCap": 5,
+    "popUpgrades": 1,
+    "result": 0,
+    "round": 6,
+    "shopCosts": [
+        3,
+        5,
+        4,
+        5,
+        3
+    ],
+    "shopOffers": [
+        "战士",
+        "法师",
+        "弓手",
+        "法师",
+        "战士"
+    ],
+    "units": [
+        {
+            "bx": 1,
+            "by": 6,
+            "equip": 3,
+            "hp": 576,
+            "name": "弓手",
+            "star": 2,
+            "traits": [
+                "游侠"
+            ]
+        },
+        {
+            "bx": 3,
+            "by": 6,
+            "equip": 0,
+            "hp": 320,
+            "name": "弓手",
+            "star": 1,
+            "traits": [
+                "游侠"
+            ]
+        },
+        {
+            "bx": 2,
+            "by": 6,
+            "equip": 3,
+            "hp": 320,
+            "name": "弓手",
+            "star": 1,
+            "traits": [
+                "游侠"
+            ]
+        },
+        {
+            "bx": 2,
+            "by": 5,
+            "equip": 0,
+            "hp": 810,
+            "name": "战士",
+            "star": 2,
+            "traits": [
+                "战士"
+            ]
+        },
+        {
+            "bench": 1,
+            "equip": 0,
+            "hp": 450,
+            "name": "战士",
+            "star": 1,
+            "traits": [
+                "战士"
+            ]
+        },
+        {
+            "bx": 3,
+            "by": 5,
+            "equip": 0,
+            "hp": 450,
+            "name": "战士",
+            "star": 1,
+            "traits": [
+                "战士"
+            ]
+        }
+    ]
+}
