@@ -76,6 +76,17 @@ void UnitItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         }
     }
 
+    if (m_unit && m_unit->isBoss()) {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(220, 40, 40));
+        QFont bossFont = painter->font();
+        bossFont.setBold(true);
+        bossFont.setPointSize(10);
+        painter->setFont(bossFont);
+        painter->setPen(QColor(255, 255, 200));
+        painter->drawText(QRectF(-22, -48, 44, 14), Qt::AlignCenter, QStringLiteral("BOSS"));
+    }
+
     drawStatBars(painter);
 }
 
@@ -177,7 +188,11 @@ QString UnitItem::spriteRelativePathForUnit() const
 
     QString filename;
     if (m_unit->owner() == Controller::EnemyCtrl) {
-        filename = QStringLiteral("enemy.png");
+        const QString name = m_unit->name();
+        if (m_unit->isBoss()) filename = "boss.png";
+        else if (name == "骷髅") filename = "skeleton.png";
+        else if (name == "幽灵") filename = "ghost.png";
+        else if (name == "恶魔") filename = "demon.png";
     } else {
         const QString name = m_unit->name();
         if (name == QStringLiteral("战士"))       filename = QStringLiteral("warrior.png");

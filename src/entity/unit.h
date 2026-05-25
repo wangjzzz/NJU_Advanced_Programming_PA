@@ -42,6 +42,9 @@ public:
     QPoint position() const { return m_position; }
     QSet<QString> traits() const { return m_traits; }
 
+    bool isBoss() const { return m_isBoss; }
+    void setIsBoss(bool v) { m_isBoss = v; }
+
     UnitState state() const { return m_state; }
     int targetId() const { return m_targetId; }
     int stunTimer() const { return m_stunTimer; }
@@ -144,6 +147,7 @@ protected:
     int m_moveTimer;
     int m_castTimer;
     int m_stunTimer;
+    bool m_isBoss = false;
     QVector<QPoint> m_path;
 };
 

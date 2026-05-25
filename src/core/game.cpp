@@ -425,33 +425,53 @@ void Game::clearEnemyUnits()
 
 void Game::spawnEnemiesForRound(int round)
 {
-    struct SpawnInfo {
+    struct EnemyType {
         QString name;
         QString trait;
-        QPoint pos;
-        bool fromRound2;
     };
 
-    const QVector<SpawnInfo> table = {
-        {QStringLiteral("骷髅"), QStringLiteral("亡灵"), QPoint(3, 1), false},
-        {QStringLiteral("幽灵"), QStringLiteral("法师"), QPoint(4, 2), false},
-        {QStringLiteral("恶魔"), QStringLiteral("战士"), QPoint(2, 0), true},
+    const QVector<EnemyType> enemyPool = {
+        {QStringLiteral("骷髅"), QStringLiteral("亡灵")},
+        {QStringLiteral("幽灵"), QStringLiteral("法师")},
+        {QStringLiteral("恶魔"), QStringLiteral("战士")},
     };
 
-    for (const SpawnInfo& info : table) {
-        if (info.fromRound2 && round < 2) {
-            continue;
-        }
-        if (round == 1 && info.name == QStringLiteral("幽灵")) {
-            continue;
-        }
-        if (m_board.hasUnitAt(info.pos)) {
-            continue;
-        }
+    int enemyCount = 1;
+    if (round >= 10)      enemyCount = 6;
+    else if (round >= 8)  enemyCount = 5;
+    else if (round >= 6)  enemyCount = 4;
+    else if (round >= 4)  enemyCount = 3;
+    else if (round >= 2)  enemyCount = 2;
 
-        Unit* enemy = UnitFactory::createEnemy(info.name, info.trait, round);
+    QVector<QPoint> available;
+    for (int y = 0; y < Board::ROWS / 2; ++y) {
+        for (int x = 0; x < Board::COLS; ++x) {
+            QPoint pos(x, y);
+            if (!m_board.hasUnitAt(pos)) {
+                available.append(pos);
+            }
+        }
+    }
+
+    auto& rng = *QRandomGenerator::global();
+    for (int i = available.size() - 1; i > 0; --i) {
+        available.swapItemsAt(i, rng.bounded(i + 1));
+    }
+
+    for (int i = 0; i < enemyCount && i < available.size(); ++i) {
+        int typeIdx = rng.bounded(enemyPool.size());
+        const EnemyType& type = enemyPool[typeIdx];
+        Unit* enemy = UnitFactory::createEnemy(type.name, type.trait, round);
         registerUnit(enemy);
-        m_board.addUnit(enemy, info.pos);
+        m_board.addUnit(enemy, available[i]);
+    }
+
+    if ((round == 4 || round == 7 || round == 10) && enemyCount < available.size()) {
+        const QString bossName = QStringLiteral("恶魔");
+        const QString bossTrait = QStringLiteral("战士");
+        Unit* boss = UnitFactory::createEnemy(bossName, bossTrait, round, true);
+        registerUnit(boss);
+        m_board.addUnit(boss, available[enemyCount]);
     }
 }
 
