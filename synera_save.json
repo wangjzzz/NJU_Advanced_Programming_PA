@@ -2,40 +2,40 @@
     "equips": [
         1
     ],
-    "gold": 36,
+    "gold": 22,
     "hp": 100,
     "popCap": 5,
     "popUpgrades": 1,
     "result": 0,
-    "round": 6,
+    "round": 5,
     "shopCosts": [
-        3,
-        5,
+        4,
         4,
         5,
+        4,
         3
     ],
     "shopOffers": [
-        "战士",
+        "牧师",
+        "牧师",
         "法师",
         "弓手",
-        "法师",
         "战士"
     ],
     "units": [
         {
-            "bx": 1,
+            "bx": 2,
             "by": 6,
-            "equip": 3,
-            "hp": 576,
-            "name": "弓手",
-            "star": 2,
+            "equip": 0,
+            "hp": 280,
+            "name": "法师",
+            "star": 1,
             "traits": [
-                "游侠"
+                "法师"
             ]
         },
         {
-            "bx": 3,
+            "bx": 4,
             "by": 6,
             "equip": 0,
             "hp": 320,
@@ -46,21 +46,21 @@
             ]
         },
         {
-            "bx": 2,
+            "bx": 3,
             "by": 6,
-            "equip": 3,
-            "hp": 320,
-            "name": "弓手",
+            "equip": 0,
+            "hp": 300,
+            "name": "牧师",
             "star": 1,
             "traits": [
-                "游侠"
+                "辅助"
             ]
         },
         {
-            "bx": 2,
+            "bx": 3,
             "by": 5,
             "equip": 0,
-            "hp": 810,
+            "hp": 890,
             "name": "战士",
             "star": 2,
             "traits": [
@@ -68,22 +68,12 @@
             ]
         },
         {
-            "bench": 1,
-            "equip": 0,
-            "hp": 450,
-            "name": "战士",
-            "star": 1,
-            "traits": [
-                "战士"
-            ]
-        },
-        {
-            "bx": 3,
+            "bx": 4,
             "by": 5,
             "equip": 0,
-            "hp": 450,
+            "hp": 890,
             "name": "战士",
-            "star": 1,
+            "star": 2,
             "traits": [
                 "战士"
             ]

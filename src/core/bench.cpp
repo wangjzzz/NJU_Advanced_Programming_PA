@@ -5,7 +5,7 @@ Bench::Bench()
 {
 }
 
-bool Bench::addUnit(Unit* unit)
+bool Bench::addUnit(Unit* unit)  
 {
     if (!unit) {
         return false;
