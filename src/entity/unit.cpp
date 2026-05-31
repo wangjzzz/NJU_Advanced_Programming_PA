@@ -32,6 +32,8 @@ Unit::Unit(const QString& name, Controller owner)
     , m_moveTimer(0)
     , m_castTimer(0)
     , m_stunTimer(0)
+    , m_hitFlashTimer(0)
+    , m_skillPopupTimer(0)
 {
 }
 
@@ -102,6 +104,7 @@ void Unit::takeDamage(int damage)
         return;
     }
     setHp(m_hp - damage);
+    m_hitFlashTimer = 8;
 }
 
 void Unit::heal(int amount)
@@ -131,6 +134,8 @@ void Unit::resetCombatState()
     m_moveTimer = 0;
     m_castTimer = 0;
     m_stunTimer = 0;
+    m_hitFlashTimer = 0;
+    m_skillPopupTimer = 0;
     m_path.clear();
 }
 

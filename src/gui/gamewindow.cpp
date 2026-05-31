@@ -147,6 +147,14 @@ void GameWindow::refreshPanels()
     const Player* player = m_game->player();
     m_hpLabel->setText(QStringLiteral("玩家生命: %1 / %2").arg(player->hp()).arg(player->maxHp()));
     m_goldLabel->setText(QStringLiteral("金币: %1").arg(player->gold()));
+    const QString st = player->streakText();
+    const int interest = player->interestBonus();
+    if (!st.isEmpty()) {
+        m_goldLabel->setText(m_goldLabel->text() + QStringLiteral(" [%1]").arg(st));
+    }
+    if (interest > 0) {
+        m_goldLabel->setText(m_goldLabel->text() + QStringLiteral(" (利息+%1)").arg(interest));
+    }
     m_roundLabel->setText(QStringLiteral("回合: %1 / %2")
                               .arg(player->currentRound())
                               .arg(CombatConst::kMaxRounds));

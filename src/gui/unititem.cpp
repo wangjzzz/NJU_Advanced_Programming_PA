@@ -87,6 +87,25 @@ void UnitItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         painter->drawText(QRectF(-22, -48, 44, 14), Qt::AlignCenter, QStringLiteral("BOSS"));
     }
 
+    if (m_unit && m_unit->hitFlashTimer() > 0) {
+        const qreal alpha = 0.55 * m_unit->hitFlashTimer() / 8.0;
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(255, 255, 255, static_cast<int>(alpha * 255)));
+        painter->drawRoundedRect(QRectF(-28, -28, 56, 56), 8, 8);
+    }
+
+    if (m_unit && m_unit->skillPopupTimer() > 0
+        && m_unit->owner() != Controller::EnemyCtrl) {
+        const qreal alpha = qBound(0.0, m_unit->skillPopupTimer() / 50.0, 1.0);
+        QFont skillFont = painter->font();
+        skillFont.setBold(true);
+        skillFont.setPointSize(13);
+        painter->setFont(skillFont);
+        painter->setPen(QColor(255, 220, 50, static_cast<int>(alpha * 255)));
+        painter->drawText(QRectF(-40, -60, 80, 22), Qt::AlignCenter,
+                          QStringLiteral("SKILL!"));
+    }
+
     drawStatBars(painter);
 }
 
@@ -167,8 +186,8 @@ bool UnitItem::tryLoadFallbackSprite(const QString& root) const
         const QString name = m_unit->name();
         if (name == QStringLiteral("战士"))       path = kReaperBase.arg(1);
         else if (name == QStringLiteral("牧师"))   path = kReaperBase.arg(2);
-        else if (name == QStringLiteral("弓手"))   path = kSatyrBase.arg(QStringLiteral("01"), QStringLiteral("01"));
-        else if (name == QStringLiteral("法师"))   path = kSatyrBase.arg(QStringLiteral("02"), QStringLiteral("02"));
+        else if (name == QStringLiteral("弓手"))   path = kSatyrBase.arg(QStringLiteral("01")).arg(QStringLiteral("01"));
+        else if (name == QStringLiteral("法师"))   path = kSatyrBase.arg(QStringLiteral("02")).arg(QStringLiteral("02"));
         else                                       path = kReaperBase.arg(1);
     }
 
@@ -226,6 +245,12 @@ void UnitItem::setBenchSlot(int slot)
 
 void UnitItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 {
+    if (event->button() == Qt::RightButton) {
+        event->accept();
+        emit rightClicked(unitId());
+        return;
+    }
+
     if (event->button() != Qt::LeftButton) {
         QGraphicsObject::mousePressEvent(event);
         return;

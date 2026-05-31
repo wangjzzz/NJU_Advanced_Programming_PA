@@ -80,12 +80,20 @@ Unit* CombatSystem::selectTarget(Unit* self, const Board& board, const QList<Uni
     Unit* best = nullptr;
     const QPoint selfPos = self->position();
 
+    const bool isHealer = self->heroType() == QStringLiteral("\u7267\u5E08");
+
     for (Unit* other : allUnits) {
         if (!other || other == self || !other->isAlive()) {
             continue;
         }
-        if (other->owner() == self->owner()) {
-            continue;
+        if (isHealer) {
+            if (other->owner() != self->owner() || other->hp() >= other->maxHp()) {
+                continue;
+            }
+        } else {
+            if (other->owner() == self->owner()) {
+                continue;
+            }
         }
         if (board.getUnitAt(other->position()) != other) {
             continue;
@@ -110,13 +118,18 @@ QVector<QPoint> CombatSystem::findPath(const Board& board, Unit* unit, const QPo
     queue.enqueue(start);
     visited.insert(start);
 
-    auto isGoal = [&](const QPoint& p) {
+    auto distToTarget = [&](const QPoint& p) {
         const qreal dx = p.x() - targetPos.x();
         const qreal dy = p.y() - targetPos.y();
-        return qSqrt(dx * dx + dy * dy) <= unit->range() + 0.01;
+        return qSqrt(dx * dx + dy * dy);
     };
 
-    QPoint found = start;
+    auto isGoal = [&](const QPoint& p) {
+        return distToTarget(p) <= unit->range() + 0.01;
+    };
+
+    QPoint bestCell = start;
+    qreal bestDist = distToTarget(start);
     bool reached = isGoal(start);
 
     while (!queue.isEmpty() && !reached) {
@@ -132,16 +145,22 @@ QVector<QPoint> CombatSystem::findPath(const Board& board, Unit* unit, const QPo
             visited.insert(next);
             parent.insert(next, cur);
             queue.enqueue(next);
+
+            const qreal d = distToTarget(next);
+            if (d < bestDist) {
+                bestDist = d;
+                bestCell = next;
+            }
+
             if (isGoal(next)) {
-                found = next;
+                bestCell = next;
                 reached = true;
                 break;
             }
-            if (!reached) {
-                found = next;
-            }
         }
     }
+
+    const QPoint found = reached ? bestCell : bestCell;
 
     QVector<QPoint> path;
     QPoint cur = found;
@@ -192,15 +211,25 @@ void CombatSystem::performBasicAttack(Unit* attacker, Unit* target)
         return;
     }
 
+    const bool isHealer = attacker->heroType() == QStringLiteral("\u7267\u5E08");
+
     auto strike = [&]() {
-        target->takeDamage(attacker->atk());
+        if (isHealer) {
+            const int healAmt = qMax(1, attacker->atk() / 3);
+            target->heal(healAmt);
+        } else {
+            target->takeDamage(attacker->atk());
+        }
         attacker->gainMana(CombatConst::kManaPerAttack);
     };
 
     strike();
+    m_lastAttackLines.push_back({attacker->position(), target->position(), isHealer});
+
     if (attacker->doubleAttackChance() > 0.0
         && QRandomGenerator::global()->generateDouble() < attacker->doubleAttackChance()) {
         strike();
+        m_lastAttackLines.push_back({attacker->position(), target->position(), isHealer});
     }
 }
 
@@ -213,6 +242,13 @@ void CombatSystem::updateUnit(Board& board, Unit* unit, const QList<Unit*>& allU
         return;
     }
 
+    if (unit->hitFlashTimer() > 0) {
+        unit->setHitFlashTimer(unit->hitFlashTimer() - 1);
+    }
+    if (unit->skillPopupTimer() > 0) {
+        unit->setSkillPopupTimer(unit->skillPopupTimer() - 1);
+    }
+
     if (unit->stunTimer() > 0) {
         unit->setStunTimer(unit->stunTimer() - 1);
         return;
@@ -222,6 +258,7 @@ void CombatSystem::updateUnit(Board& board, Unit* unit, const QList<Unit*>& allU
         unit->setCastTimer(unit->castTimer() + 1);
         if (unit->castTimer() >= CombatConst::kCastDuration) {
             unit->castSkill(board, allUnits);
+            unit->setSkillPopupTimer(50);
             unit->setCastTimer(0);
             unit->setState(UnitState::Idle);
         }
@@ -229,8 +266,18 @@ void CombatSystem::updateUnit(Board& board, Unit* unit, const QList<Unit*>& allU
     }
 
     Unit* target = findUnitById(allUnits, unit->targetId());
-    if (!target || !target->isAlive() || target->owner() == unit->owner()
-        || board.getUnitAt(target->position()) != target) {
+    const bool isHealer = unit->heroType() == QStringLiteral("\u7267\u5E08");
+    bool targetInvalid = !target || !target->isAlive()
+                         || board.getUnitAt(target->position()) != target;
+    if (!targetInvalid) {
+        if (isHealer) {
+            targetInvalid = (target->owner() != unit->owner() || target->hp() >= target->maxHp());
+        } else {
+            targetInvalid = (target->owner() == unit->owner());
+        }
+    }
+
+    if (targetInvalid) {
         target = selectTarget(unit, board, allUnits);
         unit->setTargetId(target ? target->id() : -1);
         unit->clearPath();
@@ -267,6 +314,8 @@ void CombatSystem::updateUnit(Board& board, Unit* unit, const QList<Unit*>& allU
 
 void CombatSystem::tick(Board& board, const QList<Unit*>& allUnits)
 {
+    m_lastAttackLines.clear();
+
     QList<Unit*> fighters = collectBoardUnits(board, allUnits);
     std::sort(fighters.begin(), fighters.end(), [](Unit* a, Unit* b) {
         return a->id() < b->id();

@@ -31,6 +31,7 @@ signals:
     void dragMoved(int unitId, const QPoint& sourceGrid, const QPointF& scenePos);
     void dragDropped(int unitId, const QPoint& sourceGrid, const QPointF& scenePos);
     void clicked(int unitId);
+    void rightClicked(int unitId);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* event) override;

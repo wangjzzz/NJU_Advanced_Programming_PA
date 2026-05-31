@@ -12,7 +12,9 @@
 #include <unordered_map>
 #include <vector>
 #include "board.h"
+#include "boardgeometry.h"
 #include "combat_system.h"
+#include "dragdrophandler.h"
 #include "entity/combattypes.h"
 #include "equipbench.h"
 #include "equipment.h"
@@ -22,6 +24,8 @@
 
 class Unit;
 class QGraphicsScene;
+class QGraphicsRectItem;
+class QGraphicsLineItem;
 class GridItem;
 class UnitItem;
 class BenchSlotItem;
@@ -45,6 +49,7 @@ public:
     const Board* board() const { return &m_board; }
     const Shop& shop() const { return m_shop; }
     const EquipBench& equipBench() const { return m_equipBench; }
+    const BoardGeometry& geometry() const { return m_geometry; }
 
     GamePhase phase() const { return m_phase; }
     GameResult result() const { return m_result; }
@@ -70,6 +75,7 @@ public:
     void handleDragMoved(int unitId, const QPoint& sourceGrid, const QPointF& scenePos);
     void handleDropOnBoard(int unitId, const QPoint& source, const QPointF& scenePos);
     void handleUnitClicked(int unitId);
+    void sellUnit(int unitId);
 
 signals:
     void stateChanged();
@@ -83,21 +89,7 @@ private:
     void setupHeroStats(Unit* unit);
     Unit* registerUnit(Unit* unit);
     Unit* findUnitById(int unitId) const;
-    GridItem* findGridItem(const QPoint& gridPos) const;
     UnitItem* findUnitItem(int unitId) const;
-    BenchSlotItem* findBenchSlot(int slot) const;
-
-    void clearGridHighlights();
-    void clearBenchHighlights();
-
-    bool isBenchScenePos(const QPointF& scenePos) const;
-    int benchSlotAt(const QPointF& scenePos) const;
-
-    bool canDropOnBoard(Unit* unit, const QPoint& source, const QPoint& target, bool allowSwap) const;
-    bool canDropOnBench(Unit* unit, int slot, bool allowSwap) const;
-
-    void applyBoardDrop(Unit* unit, const QPoint& source, const QPoint& target);
-    void applyBenchDrop(Unit* unit, int sourceBenchSlot, int targetBenchSlot);
 
     void beginPrepPhase();
     void beginResolvePhase(bool playerWon);
@@ -119,11 +111,8 @@ private:
     void syncFromBoard();
     void syncFromBench();
     void refreshUnitVisuals();
-
-    QPointF gridToWorld(int row, int col) const;
-    QPoint worldToGrid(const QPointF& world) const;
-    QPolygonF cellHexPolygon(int row, int col) const;
-    QPointF benchSlotCenter(int slot) const;
+    void drawAttackLines();
+    void clearAttackLines();
 
     Board m_board;
     Player m_player;
@@ -131,36 +120,29 @@ private:
     EquipBench m_equipBench;
     SynergySystem m_synergy;
     CombatSystem m_combat;
+    BoardGeometry m_geometry;
+    DragDropHandler m_dragDrop;
     QList<Unit*> m_allUnits;
 
     QGraphicsScene* m_scene;
+    QGraphicsRectItem* m_sellZoneItem;
     QTimer* m_combatTimer;
     std::vector<GridItem*> m_gridItems;
     std::vector<BenchSlotItem*> m_benchItems;
     std::vector<UnitItem*> m_unitItems;
     std::unordered_map<int, UnitItem*> m_unitItemById;
+    std::vector<QGraphicsLineItem*> m_attackLineItems;
 
     GamePhase m_phase;
     GameResult m_result;
     QString m_phaseMessage;
     bool m_lastCombatWon;
 
-    bool m_dragActive;
-    int m_activeUnitId;
-    int m_activeBenchSlot;
-    QPoint m_sourceGrid;
     int m_selectedUnitId;
     int m_selectedEquipSlot;
 
     QHash<int, QPoint> m_preCombatBoardPositions;
     QHash<int, int> m_preCombatBenchSlots;
-
-    int m_rows;
-    int m_cols;
-    qreal m_radius;
-    qreal m_rowSpacing;
-    qreal m_benchY;
-    qreal m_benchSpacing;
 };
 
 #endif // CORE_GAME_H

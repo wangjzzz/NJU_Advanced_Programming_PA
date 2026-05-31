@@ -15,6 +15,11 @@ public:
     int populationCap() const { return m_populationCap; }
     int currentRound() const { return m_currentRound; }
     int populationUpgradeCount() const { return m_populationUpgradeCount; }
+    int winStreak() const { return m_winStreak; }
+    int lossStreak() const { return m_lossStreak; }
+    int interestBonus() const;
+    int streakBonus() const;
+    QString streakText() const;
 
     Bench* bench() { return &m_bench; }
     const Bench* bench() const { return &m_bench; }
@@ -32,6 +37,8 @@ public:
     bool upgradePopulationCap();
 
     void advanceRound() { ++m_currentRound; }
+    void onCombatWin();
+    void onCombatLose();
     void reset();
 
     bool isAlive() const { return m_hp > 0; }
@@ -44,6 +51,8 @@ private:
     int m_populationCap;
     int m_currentRound;
     int m_populationUpgradeCount;
+    int m_winStreak;
+    int m_lossStreak;
 
     Bench m_bench;
 };

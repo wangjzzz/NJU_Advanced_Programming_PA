@@ -8,6 +8,8 @@ Player::Player()
     , m_populationCap(4)
     , m_currentRound(1)
     , m_populationUpgradeCount(0)
+    , m_winStreak(0)
+    , m_lossStreak(0)
 {
 }
 
@@ -54,5 +56,41 @@ void Player::reset()
     m_populationCap = 4;
     m_currentRound = 1;
     m_populationUpgradeCount = 0;
+    m_winStreak = 0;
+    m_lossStreak = 0;
     m_bench.clear();
+}
+
+int Player::interestBonus() const
+{
+    return qMin(m_gold / 10, 5);
+}
+
+int Player::streakBonus() const
+{
+    if (m_winStreak >= 6) return 3;
+    if (m_winStreak >= 4) return 2;
+    if (m_winStreak >= 2) return 1;
+    if (m_lossStreak >= 4) return 2;
+    if (m_lossStreak >= 2) return 1;
+    return 0;
+}
+
+QString Player::streakText() const
+{
+    if (m_winStreak >= 2) return QStringLiteral("\u8FDE\u80DC%1").arg(m_winStreak);
+    if (m_lossStreak >= 2) return QStringLiteral("\u8FDE\u8D25%1").arg(m_lossStreak);
+    return QString();
+}
+
+void Player::onCombatWin()
+{
+    ++m_winStreak;
+    m_lossStreak = 0;
+}
+
+void Player::onCombatLose()
+{
+    ++m_lossStreak;
+    m_winStreak = 0;
 }

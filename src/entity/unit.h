@@ -51,6 +51,10 @@ public:
     int attackTimer() const { return m_attackTimer; }
     int moveTimer() const { return m_moveTimer; }
     int castTimer() const { return m_castTimer; }
+    int hitFlashTimer() const { return m_hitFlashTimer; }
+    void setHitFlashTimer(int frames) { m_hitFlashTimer = frames; }
+    int skillPopupTimer() const { return m_skillPopupTimer; }
+    void setSkillPopupTimer(int frames) { m_skillPopupTimer = frames; }
 
     qreal skillDamageMultiplier() const { return m_skillDamageMultiplier; }
     qreal doubleAttackChance() const { return m_doubleAttackChance; }
@@ -147,6 +151,8 @@ protected:
     int m_moveTimer;
     int m_castTimer;
     int m_stunTimer;
+    int m_hitFlashTimer;
+    int m_skillPopupTimer;
     bool m_isBoss = false;
     QVector<QPoint> m_path;
 };

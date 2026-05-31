@@ -5,15 +5,25 @@
 #include <QList>
 #include <QPoint>
 #include <QVector>
+#include <vector>
 
 class Board;
 class Unit;
+
+struct AttackLineRecord
+{
+    QPoint from;
+    QPoint to;
+    bool isHeal = false;
+};
 
 class CombatSystem
 {
 public:
     void tick(Board& board, const QList<Unit*>& allUnits);
     bool checkBattleEnd(const Board& board, bool& playerWon) const;
+
+    const std::vector<AttackLineRecord>& lastAttackLines() const { return m_lastAttackLines; }
 
 private:
     Unit* findUnitById(const QList<Unit*>& allUnits, int id) const;
@@ -29,6 +39,8 @@ private:
     void performBasicAttack(Unit* attacker, Unit* target);
 
     void updateUnit(Board& board, Unit* unit, const QList<Unit*>& allUnits);
+
+    std::vector<AttackLineRecord> m_lastAttackLines;
 };
 
 #endif

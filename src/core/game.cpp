@@ -1,5 +1,7 @@
 #include "game.h"
 #include <algorithm>
+#include <array>
+#include <stdexcept>
 #include "core/gamesave.h"
 #include "core/unitfactory.h"
 #include "entity/unit.h"
@@ -7,7 +9,10 @@
 #include "gui/griditem.h"
 #include "gui/unititem.h"
 #include <QFile>
+#include <QGraphicsLineItem>
+#include <QGraphicsRectItem>
 #include <QGraphicsScene>
+#include <QGraphicsSimpleTextItem>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -18,28 +23,21 @@ namespace {
 constexpr qreal kZGrid = 0.0;
 constexpr qreal kZUnit = 1.0;
 constexpr qreal kZDraggingUnit = 2.0;
-constexpr qreal kBenchSlotSize = 45.0;
 }
 
 Game::Game(QObject* parent)
     : QObject(parent)
     , m_scene(new QGraphicsScene(this))
+    , m_sellZoneItem(nullptr)
     , m_combatTimer(new QTimer(this))
+    , m_geometry(Board::ROWS, Board::COLS, 46.0, 69.0,
+                 Board::ROWS * 69.0 + 30.0, 55.0)
+    , m_dragDrop(m_board, m_player)
     , m_phase(GamePhase::Prep)
     , m_result(GameResult::Playing)
     , m_lastCombatWon(false)
-    , m_dragActive(false)
-    , m_activeUnitId(-1)
-    , m_activeBenchSlot(-1)
-    , m_sourceGrid(-1, -1)
     , m_selectedUnitId(-1)
     , m_selectedEquipSlot(-1)
-    , m_rows(Board::ROWS)
-    , m_cols(Board::COLS)
-    , m_radius(46.0)
-    , m_rowSpacing(69.0)
-    , m_benchY(Board::ROWS * 69.0 + 30.0)
-    , m_benchSpacing(55.0)
 {
     m_combatTimer->setInterval(1000 / CombatConst::kFramesPerSecond);
     connect(m_combatTimer, &QTimer::timeout, this, &Game::onCombatTick);
@@ -93,7 +91,7 @@ void Game::startCombat()
         return;
     }
     if (countPlayerUnitsOnBoard() <= 0) {
-        m_phaseMessage = QStringLiteral("请至少将一个单位部署到棋盘下半区后再开始战斗。");
+        m_phaseMessage = QStringLiteral("\u8BF7\u81F3\u5C11\u5C06\u4E00\u4E2A\u5355\u4F4D\u90E8\u7F72\u5230\u68CB\u76D8\u4E0B\u534A\u533A\u540E\u518D\u5F00\u59CB\u6218\u6597\u3002");
         emit stateChanged();
         return;
     }
@@ -104,7 +102,7 @@ void Game::startCombat()
     snapshotPlayerDeployment();
     prepareUnitsForCombat();
     m_phase = GamePhase::Combat;
-    m_phaseMessage = QStringLiteral("战斗进行中…");
+    m_phaseMessage = QStringLiteral("\u6218\u6597\u8FDB\u884C\u4E2D\u2026");
     m_combatTimer->start();
     emit stateChanged();
 }
@@ -118,28 +116,45 @@ void Game::beginPrepPhase()
     syncFromBench();
     refreshUnitVisuals();
 
+    const int interest = m_player.interestBonus();
+    const int streak = m_player.streakBonus();
+    if (interest > 0 || streak > 0) {
+        m_player.addGold(interest + streak);
+    }
+
     m_shop.refresh();
     m_synergy.applyToPlayerUnits(m_board, *m_player.bench(), m_allUnits);
 
     if (m_result == GameResult::Playing) {
-        m_phaseMessage = QStringLiteral("准备阶段：购买/布阵/装备，然后「开始战斗」。刷新商店2金，升级人口递增。");
+        QString msg = QStringLiteral("\u51C6\u5907\u9636\u6BB5\uFF1A\u8D2D\u4E70/\u5E03\u9635/\u88C5\u5907\uFF0C\u7136\u540E\u300E\u5F00\u59CB\u6218\u6597\u300F\u3002");
+        if (interest > 0) {
+            msg += QStringLiteral(" \u5229\u606F+%1\u91D1").arg(interest);
+        }
+        const QString st = m_player.streakText();
+        if (!st.isEmpty()) {
+            msg += QStringLiteral(" %1\u5956\u52B1+%2\u91D1").arg(st).arg(streak);
+        }
+        m_phaseMessage = msg;
     }
 }
 
 void Game::beginResolvePhase(bool playerWon)
 {
     m_combatTimer->stop();
+    clearAttackLines();
     m_phase = GamePhase::Resolve;
     m_lastCombatWon = playerWon;
 
     const int round = m_player.currentRound();
     if (playerWon) {
+        m_player.onCombatWin();
         m_player.addGold(CombatConst::kGoldWinBase + round * 2);
-        m_phaseMessage = QStringLiteral("战斗胜利！获得金币。");
+        m_phaseMessage = QStringLiteral("\u6218\u6597\u80DC\u5229\uFF01\u83B7\u5F97\u91D1\u5E01\u3002");
     } else {
+        m_player.onCombatLose();
         m_player.takeDamage(CombatConst::kPlayerDamageOnLoss + (round - 1) * 2);
         m_player.addGold(CombatConst::kGoldLoseBase);
-        m_phaseMessage = QStringLiteral("战斗失败，玩家受到伤害。");
+        m_phaseMessage = QStringLiteral("\u6218\u6597\u5931\u8D25\uFF0C\u73A9\u5BB6\u53D7\u5230\u4F24\u5BB3\u3002");
     }
 
     cleanupAfterCombat();
@@ -148,14 +163,14 @@ void Game::beginResolvePhase(bool playerWon)
 
     if (!m_player.isAlive()) {
         m_result = GameResult::Defeat;
-        m_phaseMessage = QStringLiteral("游戏失败：玩家生命值归零。");
+        m_phaseMessage = QStringLiteral("\u6E38\u620F\u5931\u8D25\uFF1A\u73A9\u5BB6\u751F\u547D\u503C\u5F52\u96F6\u3002");
         emit stateChanged();
         return;
     }
 
     if (playerWon && round >= CombatConst::kMaxRounds) {
         m_result = GameResult::Victory;
-        m_phaseMessage = QStringLiteral("恭喜通关！你击败了全部 %1 轮敌人。").arg(CombatConst::kMaxRounds);
+        m_phaseMessage = QStringLiteral("\u606D\u559C\u901A\u5173\uFF01\u4F60\u51FB\u8D25\u4E86\u5168\u90E8 %1 \u8F6E\u654C\u4EBA\u3002").arg(CombatConst::kMaxRounds);
         emit stateChanged();
         return;
     }
@@ -168,9 +183,9 @@ void Game::beginResolvePhase(bool playerWon)
     beginPrepPhase();
 
     if (playerWon) {
-        m_phaseMessage = QStringLiteral("上轮胜利！进入第 %1 轮准备阶段。").arg(m_player.currentRound());
+        m_phaseMessage = QStringLiteral("\u4E0A\u8F6E\u80DC\u5229\uFF01\u8FDB\u5165\u7B2C %1 \u8F6E\u51C6\u5907\u9636\u6BB5\u3002").arg(m_player.currentRound());
     } else {
-        m_phaseMessage = QStringLiteral("上轮失败，重新部署后继续第 %1 轮。").arg(m_player.currentRound());
+        m_phaseMessage = QStringLiteral("\u4E0A\u8F6E\u5931\u8D25\uFF0C\u91CD\u65B0\u90E8\u7F72\u540E\u7EE7\u7EED\u7B2C %1 \u8F6E\u3002").arg(m_player.currentRound());
     }
     emit stateChanged();
 }
@@ -316,6 +331,7 @@ void Game::onCombatTick()
     }
 
     m_combat.tick(m_board, m_allUnits);
+    drawAttackLines();
     syncFromBoard();
     refreshUnitVisuals();
 
@@ -364,22 +380,22 @@ void Game::setupHeroStats(Unit* unit)
     if (!unit) {
         return;
     }
-    if (unit->name() == QStringLiteral("战士")) {
+    if (unit->name() == QStringLiteral("\u6218\u58EB")) {
         unit->setMaxHp(450);
         unit->setAtk(40);
         unit->setRange(1);
         unit->setMaxMana(60);
-    } else if (unit->name() == QStringLiteral("弓手")) {
+    } else if (unit->name() == QStringLiteral("\u5F13\u624B")) {
         unit->setMaxHp(320);
         unit->setAtk(50);
         unit->setRange(3);
         unit->setMaxMana(60);
-    } else if (unit->name() == QStringLiteral("法师")) {
+    } else if (unit->name() == QStringLiteral("\u6CD5\u5E08")) {
         unit->setMaxHp(280);
         unit->setAtk(70);
         unit->setRange(2);
         unit->setMaxMana(40);
-    } else if (unit->name() == QStringLiteral("牧师")) {
+    } else if (unit->name() == QStringLiteral("\u7267\u5E08")) {
         unit->setMaxHp(300);
         unit->setAtk(25);
         unit->setRange(2);
@@ -431,9 +447,9 @@ void Game::spawnEnemiesForRound(int round)
     };
 
     const QVector<EnemyType> enemyPool = {
-        {QStringLiteral("骷髅"), QStringLiteral("亡灵")},
-        {QStringLiteral("幽灵"), QStringLiteral("法师")},
-        {QStringLiteral("恶魔"), QStringLiteral("战士")},
+        {QStringLiteral("\u9AB7\u9AC5"), QStringLiteral("\u4EA1\u7075")},
+        {QStringLiteral("\u5E7D\u7075"), QStringLiteral("\u6CD5\u5E08")},
+        {QStringLiteral("\u6076\u9B54"), QStringLiteral("\u6218\u58EB")},
     };
 
     int enemyCount = 1;
@@ -467,8 +483,8 @@ void Game::spawnEnemiesForRound(int round)
     }
 
     if ((round == 4 || round == 7 || round == 10) && enemyCount < available.size()) {
-        const QString bossName = QStringLiteral("恶魔");
-        const QString bossTrait = QStringLiteral("战士");
+        const QString bossName = QStringLiteral("\u6076\u9B54");
+        const QString bossTrait = QStringLiteral("\u6218\u58EB");
         Unit* boss = UnitFactory::createEnemy(bossName, bossTrait, round, true);
         registerUnit(boss);
         m_board.addUnit(boss, available[enemyCount]);
@@ -485,144 +501,10 @@ Unit* Game::findUnitById(int unitId) const
     return nullptr;
 }
 
-GridItem* Game::findGridItem(const QPoint& gridPos) const
-{
-    for (GridItem* item : m_gridItems) {
-        if (item && item->gridPos() == gridPos) {
-            return item;
-        }
-    }
-    return nullptr;
-}
-
 UnitItem* Game::findUnitItem(int unitId) const
 {
     auto it = m_unitItemById.find(unitId);
     return it == m_unitItemById.end() ? nullptr : it->second;
-}
-
-BenchSlotItem* Game::findBenchSlot(int slot) const
-{
-    for (BenchSlotItem* item : m_benchItems) {
-        if (item && item->slot() == slot) {
-            return item;
-        }
-    }
-    return nullptr;
-}
-
-void Game::clearGridHighlights()
-{
-    for (GridItem* item : m_gridItems) {
-        if (item) {
-            item->setHoverActive(false);
-            item->setDropActive(false);
-        }
-    }
-}
-
-void Game::clearBenchHighlights()
-{
-    for (BenchSlotItem* item : m_benchItems) {
-        if (item) {
-            item->setHoverActive(false);
-            item->setDropActive(false);
-        }
-    }
-}
-
-bool Game::isBenchScenePos(const QPointF& scenePos) const
-{
-    return scenePos.y() >= m_benchY && scenePos.y() < m_benchY + kBenchSlotSize;
-}
-
-int Game::benchSlotAt(const QPointF& scenePos) const
-{
-    if (!isBenchScenePos(scenePos)) {
-        return -1;
-    }
-    return qBound(0, static_cast<int>(scenePos.x() / m_benchSpacing), Bench::BENCH_SIZE - 1);
-}
-
-bool Game::canDropOnBoard(Unit* unit, const QPoint& source, const QPoint& target, bool allowSwap) const
-{
-    if (!canDragUnits() || !unit || unit->owner() != Controller::PlayerCtrl) {
-        return false;
-    }
-    if (!m_board.isValidPosition(target) || !m_board.isPlayerHalf(target)) {
-        return false;
-    }
-
-    Unit* occupant = m_board.getUnitAt(target);
-    if (occupant) {
-        return allowSwap && occupant != unit && occupant->owner() == Controller::PlayerCtrl
-               && source != QPoint(-1, -1) && m_board.getUnitAt(source) == unit;
-    }
-
-    if (source == QPoint(-1, -1)) {
-        if (m_player.bench()->findUnitSlot(unit) < 0) {
-            return false;
-        }
-        if (countPlayerUnitsOnBoard() >= m_player.populationCap()) {
-            return false;
-        }
-        return true;
-    }
-
-    return m_board.isValidPosition(source) && m_board.isPlayerHalf(source)
-           && m_board.getUnitAt(source) == unit && source != target;
-}
-
-bool Game::canDropOnBench(Unit* unit, int slot, bool allowSwap) const
-{
-    if (!canDragUnits() || !unit || unit->owner() != Controller::PlayerCtrl
-        || !m_player.bench()->isSlotValid(slot)) {
-        return false;
-    }
-
-    Unit* occupant = m_player.bench()->getUnitAt(slot);
-    if (occupant) {
-        return allowSwap && occupant != unit;
-    }
-    return true;
-}
-
-void Game::applyBoardDrop(Unit* unit, const QPoint& source, const QPoint& target)
-{
-    Unit* occupant = m_board.getUnitAt(target);
-    if (occupant && occupant != unit) {
-        m_board.removeUnit(unit);
-        m_board.removeUnit(occupant);
-        m_board.addUnit(unit, target);
-        m_board.addUnit(occupant, source);
-        return;
-    }
-
-    if (source == QPoint(-1, -1)) {
-        const int benchSlot = m_player.bench()->findUnitSlot(unit);
-        if (benchSlot >= 0) {
-            m_player.bench()->removeUnit(benchSlot);
-        }
-    } else {
-        m_board.removeUnit(unit);
-    }
-    m_board.addUnit(unit, target);
-}
-
-void Game::applyBenchDrop(Unit* unit, int sourceBenchSlot, int targetBenchSlot)
-{
-    Unit* occupant = m_player.bench()->getUnitAt(targetBenchSlot);
-    if (occupant && occupant != unit) {
-        m_player.bench()->swapUnits(sourceBenchSlot, targetBenchSlot);
-        return;
-    }
-
-    if (sourceBenchSlot >= 0) {
-        m_player.bench()->removeUnit(sourceBenchSlot);
-    } else {
-        m_board.removeUnit(unit);
-    }
-    m_player.bench()->addUnitToSlot(unit, targetBenchSlot);
 }
 
 void Game::buildScene()
@@ -638,10 +520,11 @@ void Game::buildScene()
 
     for (int row = 0; row < Board::ROWS; ++row) {
         for (int col = 0; col < Board::COLS; ++col) {
-            const QPolygonF poly = cellHexPolygon(row, col);
+            const QPolygonF poly = m_geometry.cellHexPolygon(row, col);
             GridItem* gridItem = new GridItem(row, col, poly);
             gridItem->setZValue(kZGrid);
-            gridItem->setBaseColor(row < Board::ROWS / 2 ? QColor(90, 55, 55) : QColor(55, 55, 90));
+            gridItem->setBaseColor(row < Board::ROWS / 2
+                ? QColor(90, 55, 55) : QColor(55, 55, 90));
 
             m_scene->addItem(gridItem);
             m_gridItems.push_back(gridItem);
@@ -652,15 +535,32 @@ void Game::buildScene()
         }
     }
 
+    constexpr qreal kSlotSize = BoardGeometry::kBenchSlotSize;
     for (int slot = 0; slot < Bench::BENCH_SIZE; ++slot) {
-        const QRectF slotRect(0, 0, kBenchSlotSize, kBenchSlotSize);
+        const QRectF slotRect(0, 0, kSlotSize, kSlotSize);
         BenchSlotItem* benchItem = new BenchSlotItem(slot, slotRect);
-        benchItem->setPos(benchSlotCenter(slot) - QPointF(kBenchSlotSize / 2, kBenchSlotSize / 2));
+        const QPointF center = m_geometry.benchSlotCenter(slot);
+        benchItem->setPos(center - QPointF(kSlotSize / 2, kSlotSize / 2));
         benchItem->setZValue(kZGrid);
         m_scene->addItem(benchItem);
         m_benchItems.push_back(benchItem);
         totalBounds = totalBounds.united(benchItem->sceneBoundingRect());
     }
+
+    const QRectF szRect = m_geometry.sellZoneRect();
+    m_sellZoneItem = new QGraphicsRectItem(szRect);
+    m_sellZoneItem->setPen(QPen(QColor(200, 60, 60), 2));
+    m_sellZoneItem->setBrush(QColor(80, 35, 35));
+    m_sellZoneItem->setZValue(kZGrid);
+    m_scene->addItem(m_sellZoneItem);
+
+    auto* sellLabel = new QGraphicsSimpleTextItem(QStringLiteral("\u51FA\u552E"));
+    sellLabel->setBrush(QColor(220, 80, 80));
+    sellLabel->setPos(szRect.center() - QPointF(14, 8));
+    sellLabel->setZValue(kZGrid + 0.1);
+    m_scene->addItem(sellLabel);
+
+    totalBounds = totalBounds.united(m_sellZoneItem->sceneBoundingRect());
 
     ensureUnitItems();
     m_scene->setSceneRect(totalBounds.adjusted(-40, -40, 40, 80));
@@ -683,6 +583,7 @@ void Game::ensureUnitItems()
         connect(unitItem, &UnitItem::dragMoved, this, &Game::handleDragMoved);
         connect(unitItem, &UnitItem::dragDropped, this, &Game::handleDropOnBoard);
         connect(unitItem, &UnitItem::clicked, this, &Game::handleUnitClicked);
+        connect(unitItem, &UnitItem::rightClicked, this, &Game::sellUnit);
     }
 }
 
@@ -692,6 +593,47 @@ void Game::refreshUnitVisuals()
         if (item) {
             item->update();
         }
+    }
+}
+
+void Game::clearAttackLines()
+{
+    for (QGraphicsLineItem* line : m_attackLineItems) {
+        m_scene->removeItem(line);
+        delete line;
+    }
+    m_attackLineItems.clear();
+}
+
+void Game::drawAttackLines()
+{
+    clearAttackLines();
+
+    for (const auto& rec : m_combat.lastAttackLines()) {
+        const QPointF fromWorld = m_geometry.gridToWorld(rec.from.y(), rec.from.x());
+        const QPointF toWorld = m_geometry.gridToWorld(rec.to.y(), rec.to.x());
+
+        const qreal dx = toWorld.x() - fromWorld.x();
+        const qreal dy = toWorld.y() - fromWorld.y();
+        const qreal len = qSqrt(dx * dx + dy * dy);
+        if (len < 0.01) {
+            continue;
+        }
+        const qreal ux = dx / len;
+        const qreal uy = dy / len;
+        const qreal offset = 28.0;
+        const QPointF fromEdge(fromWorld.x() + ux * offset, fromWorld.y() + uy * offset);
+        const QPointF toEdge(toWorld.x() - ux * offset, toWorld.y() - uy * offset);
+
+        auto* line = new QGraphicsLineItem(
+            QLineF(fromEdge, toEdge));
+        const QColor lineColor = rec.isHeal
+            ? QColor(100, 255, 100, 200)
+            : QColor(255, 200, 60, 200);
+        line->setPen(QPen(lineColor, 2.5));
+        line->setZValue(3.0);
+        m_scene->addItem(line);
+        m_attackLineItems.push_back(line);
     }
 }
 
@@ -714,8 +656,8 @@ void Game::syncFromBoard()
         item->setVisible(true);
         item->setGridPos(pos);
         item->setBenchSlot(-1);
-        item->setPos(gridToWorld(pos.y(), pos.x()));
-        item->setZValue(item->unitId() == m_activeUnitId ? kZDraggingUnit : kZUnit);
+        item->setPos(m_geometry.gridToWorld(pos.y(), pos.x()));
+        item->setZValue(item->unitId() == m_dragDrop.activeUnitId() ? kZDraggingUnit : kZUnit);
         item->update();
     }
 }
@@ -738,8 +680,8 @@ void Game::syncFromBench()
 
         item->setVisible(true);
         item->setBenchSlot(slot);
-        item->setPos(benchSlotCenter(slot));
-        item->setZValue(item->unitId() == m_activeUnitId ? kZDraggingUnit : kZUnit);
+        item->setPos(m_geometry.benchSlotCenter(slot));
+        item->setZValue(item->unitId() == m_dragDrop.activeUnitId() ? kZDraggingUnit : kZUnit);
         item->update();
     }
 }
@@ -750,6 +692,53 @@ void Game::handleUnitClicked(int unitId)
     if (m_selectedEquipSlot >= 0) {
         equipFromBench(m_selectedEquipSlot, unitId);
     }
+    emit stateChanged();
+}
+
+void Game::sellUnit(int unitId)
+{
+    if (m_phase != GamePhase::Prep || m_result != GameResult::Playing) {
+        return;
+    }
+
+    Unit* unit = findUnitById(unitId);
+    if (!unit || unit->owner() != Controller::PlayerCtrl || !unit->isAlive()) {
+        return;
+    }
+
+    int basePrice = 3;
+    const QString name = unit->name();
+    if (name == QStringLiteral("\u5F13\u624B") || name == QStringLiteral("\u7267\u5E08")) basePrice = 4;
+    else if (name == QStringLiteral("\u6CD5\u5E08")) basePrice = 5;
+
+    const int refund = unit->starLevel() == 1 ? basePrice : basePrice * 3;
+    m_player.addGold(refund);
+
+    m_board.removeUnit(unit);
+    const int benchSlot = m_player.bench()->findUnitSlot(unit);
+    if (benchSlot >= 0) {
+        m_player.bench()->removeUnit(benchSlot);
+    }
+
+    auto it = m_unitItemById.find(unit->id());
+    if (it != m_unitItemById.end()) {
+        m_scene->removeItem(it->second);
+        m_unitItems.erase(std::remove(m_unitItems.begin(), m_unitItems.end(), it->second),
+                          m_unitItems.end());
+        delete it->second;
+        m_unitItemById.erase(it);
+    }
+    m_allUnits.removeOne(unit);
+    delete unit;
+
+    if (m_selectedUnitId == unitId) {
+        m_selectedUnitId = -1;
+    }
+
+    m_phaseMessage = QStringLiteral("\u5DF2\u51FA\u552E %1\uFF0C\u8FD4\u8FD8 %2 \u91D1\u5E01\u3002").arg(name).arg(refund);
+    m_synergy.applyToPlayerUnits(m_board, *m_player.bench(), m_allUnits);
+    syncFromBoard();
+    syncFromBench();
     emit stateChanged();
 }
 
@@ -764,10 +753,9 @@ void Game::handleDragStarted(int unitId, const QPoint& sourceGrid, const QPointF
         return;
     }
 
-    m_dragActive = true;
-    m_activeUnitId = unitId;
-    m_activeBenchSlot = m_player.bench()->findUnitSlot(unit);
-    m_sourceGrid = m_activeBenchSlot >= 0 ? QPoint(-1, -1) : sourceGrid;
+    const int benchSlot = m_player.bench()->findUnitSlot(unit);
+    const QPoint effectiveSource = benchSlot >= 0 ? QPoint(-1, -1) : sourceGrid;
+    m_dragDrop.beginDrag(unitId, benchSlot, effectiveSource);
 
     UnitItem* item = findUnitItem(unitId);
     if (item) {
@@ -778,7 +766,7 @@ void Game::handleDragStarted(int unitId, const QPoint& sourceGrid, const QPointF
 
 void Game::handleDragMoved(int unitId, const QPoint&, const QPointF& scenePos)
 {
-    if (!m_dragActive) {
+    if (!m_dragDrop.isActive()) {
         return;
     }
 
@@ -788,111 +776,106 @@ void Game::handleDragMoved(int unitId, const QPoint&, const QPointF& scenePos)
     }
 
     Unit* unit = findUnitById(unitId);
-    clearGridHighlights();
-    clearBenchHighlights();
+    m_dragDrop.clearGridHighlights(m_gridItems);
+    m_dragDrop.clearBenchHighlights(m_benchItems);
 
-    const QPoint target = worldToGrid(scenePos);
-    GridItem* targetItem = findGridItem(target);
-    if (targetItem && unit && canDropOnBoard(unit, m_sourceGrid, target, true)) {
-        targetItem->setHoverActive(true);
-        targetItem->setDropActive(true);
+    if (m_sellZoneItem) {
+        m_sellZoneItem->setBrush(QColor(80, 35, 35));
     }
 
-    const int benchSlot = benchSlotAt(scenePos);
-    if (benchSlot >= 0) {
-        BenchSlotItem* slotItem = findBenchSlot(benchSlot);
-        if (slotItem && unit && canDropOnBench(unit, benchSlot, true)) {
-            slotItem->setHoverActive(true);
-            slotItem->setDropActive(true);
+    if (m_geometry.isSellScenePos(scenePos)) {
+        if (m_sellZoneItem && unit && unit->owner() == Controller::PlayerCtrl) {
+            m_sellZoneItem->setBrush(QColor(200, 50, 50));
+        }
+        return;
+    }
+
+    if (m_geometry.isBenchScenePos(scenePos)) {
+        const int benchSlot = m_geometry.benchSlotAt(scenePos);
+        if (benchSlot >= 0) {
+            BenchSlotItem* slotItem = m_dragDrop.findBenchSlot(m_benchItems, benchSlot);
+            if (slotItem && unit && m_dragDrop.canDropOnBench(unit, benchSlot, true, canDragUnits())) {
+                slotItem->setHoverActive(true);
+                slotItem->setDropActive(true);
+            }
+        }
+    } else {
+        const QPoint target = m_geometry.worldToGrid(scenePos);
+        GridItem* targetItem = m_dragDrop.findGridItem(m_gridItems, target);
+        if (targetItem && unit) {
+            const bool canDrag = canDragUnits();
+            if (m_dragDrop.canDropOnBoard(unit, m_dragDrop.sourceGrid(), target, true, canDrag)) {
+                targetItem->setHoverActive(true);
+                targetItem->setDropActive(true);
+            }
         }
     }
 }
 
 void Game::handleDropOnBoard(int unitId, const QPoint& source, const QPointF& scenePos)
 {
-    if (!m_dragActive) {
+    if (!m_dragDrop.isActive()) {
         return;
     }
 
     Unit* unit = findUnitById(unitId);
-    clearGridHighlights();
-    clearBenchHighlights();
+    m_dragDrop.clearGridHighlights(m_gridItems);
+    m_dragDrop.clearBenchHighlights(m_benchItems);
 
-    if (unit && canDragUnits()) {
-        const QPoint boardTarget = worldToGrid(scenePos);
-        const bool fromBench = m_activeBenchSlot >= 0;
-        if (canDropOnBoard(unit, fromBench ? QPoint(-1, -1) : source, boardTarget, !fromBench)) {
-            applyBoardDrop(unit, fromBench ? QPoint(-1, -1) : source, boardTarget);
+    if (m_sellZoneItem) {
+        m_sellZoneItem->setBrush(QColor(80, 35, 35));
+    }
+
+    if (unit && canDragUnits() && m_geometry.isSellScenePos(scenePos)) {
+        sellUnit(unitId);
+    } else if (unit && canDragUnits()) {
+        const bool fromBench = m_dragDrop.activeBenchSlot() >= 0;
+        const QPoint effectiveSource = fromBench ? QPoint(-1, -1) : source;
+        bool handled = false;
+
+        if (m_geometry.isBenchScenePos(scenePos)) {
+            const int benchSlot = m_geometry.benchSlotAt(scenePos);
+            if (benchSlot >= 0) {
+                const int srcBench = m_dragDrop.activeBenchSlot();
+                if (m_dragDrop.canDropOnBench(unit, benchSlot, true, true)) {
+                    m_dragDrop.applyBenchDrop(unit, srcBench, benchSlot);
+                    handled = true;
+                }
+            }
+            if (!handled) {
+                const QPoint boardTarget = m_geometry.worldToGrid(scenePos);
+                if (m_dragDrop.canDropOnBoard(unit, effectiveSource, boardTarget, !fromBench, true)) {
+                    m_dragDrop.applyBoardDrop(unit, effectiveSource, boardTarget);
+                }
+            }
         } else {
-            const int benchSlot = benchSlotAt(scenePos);
-            if (benchSlot >= 0 && canDropOnBench(unit, benchSlot, true)) {
-                applyBenchDrop(unit, m_activeBenchSlot, benchSlot);
+            const QPoint boardTarget = m_geometry.worldToGrid(scenePos);
+            if (m_dragDrop.canDropOnBoard(unit, effectiveSource, boardTarget, !fromBench, true)) {
+                m_dragDrop.applyBoardDrop(unit, effectiveSource, boardTarget);
+                handled = true;
+            }
+            if (!handled) {
+                const int benchSlot = m_geometry.benchSlotAt(scenePos);
+                if (benchSlot >= 0) {
+                    const int srcBench = m_dragDrop.activeBenchSlot();
+                    if (m_dragDrop.canDropOnBench(unit, benchSlot, true, true)) {
+                        m_dragDrop.applyBenchDrop(unit, srcBench, benchSlot);
+                    }
+                }
             }
         }
     }
 
-    m_activeBenchSlot = -1;
-
-    UnitItem* item = findUnitItem(m_activeUnitId);
+    UnitItem* item = findUnitItem(m_dragDrop.activeUnitId());
     if (item) {
         item->setZValue(kZUnit);
     }
 
-    m_dragActive = false;
-    m_activeUnitId = -1;
-    m_sourceGrid = QPoint(-1, -1);
+    m_dragDrop.endDrag();
 
     syncFromBoard();
     syncFromBench();
     emit stateChanged();
-}
-
-QPointF Game::gridToWorld(int row, int col) const
-{
-    const qreal colSpacing = m_radius * qSqrt(3.0);
-    const qreal xOffset = (row % 2 == 0) ? colSpacing * 0.5 : 0.0;
-    return QPointF(xOffset + col * colSpacing, row * m_rowSpacing);
-}
-
-QPoint Game::worldToGrid(const QPointF& world) const
-{
-    QPoint best(-1, -1);
-    qreal bestDist = 1e18;
-
-    for (int row = 0; row < m_rows; ++row) {
-        for (int col = 0; col < m_cols; ++col) {
-            const QPointF center = gridToWorld(row, col);
-            const qreal dx = world.x() - center.x();
-            const qreal dy = world.y() - center.y();
-            const qreal d2 = dx * dx + dy * dy;
-            if (d2 < bestDist) {
-                bestDist = d2;
-                best = QPoint(col, row);
-            }
-        }
-    }
-    return best;
-}
-
-QPolygonF Game::cellHexPolygon(int row, int col) const
-{
-    const QPointF center = gridToWorld(row, col);
-    QPolygonF poly;
-    poly.reserve(6);
-
-    for (int i = 0; i < 6; ++i) {
-        const qreal angleDeg = 60.0 * i - 90.0;
-        const qreal angleRad = qDegreesToRadians(angleDeg);
-        poly.append(QPointF(
-            center.x() + m_radius * qCos(angleRad),
-            center.y() + m_radius * qSin(angleRad)));
-    }
-    return poly;
-}
-
-QPointF Game::benchSlotCenter(int slot) const
-{
-    return QPointF(slot * m_benchSpacing + m_benchSpacing / 2, m_benchY + kBenchSlotSize / 2);
 }
 
 QString Game::synergySummary() const
@@ -909,13 +892,13 @@ bool Game::buyFromShop(int slot)
         return false;
     }
     if (m_player.bench()->isFull()) {
-        m_phaseMessage = QStringLiteral("备战区已满，无法购买。");
+        m_phaseMessage = QStringLiteral("\u5907\u6218\u533A\u5DF2\u6EE1\uFF0C\u65E0\u6CD5\u8D2D\u4E70\u3002");
         return false;
     }
 
     const int cost = m_shop.costAt(slot);
     if (!m_player.spendGold(cost)) {
-        m_phaseMessage = QStringLiteral("金币不足。");
+        m_phaseMessage = QStringLiteral("\u91D1\u5E01\u4E0D\u8DB3\u3002");
         return false;
     }
 
@@ -928,7 +911,7 @@ bool Game::buyFromShop(int slot)
     tryAutoMerge(unit);
     m_synergy.applyToPlayerUnits(m_board, *m_player.bench(), m_allUnits);
     syncFromBench();
-    m_phaseMessage = QStringLiteral("购买成功：%1").arg(unit->displayName());
+    m_phaseMessage = QStringLiteral("\u8D2D\u4E70\u6210\u529F\uFF1A%1").arg(unit->displayName());
     emit stateChanged();
     return true;
 }
@@ -939,11 +922,11 @@ bool Game::refreshShop()
         return false;
     }
     if (!m_player.spendGold(2)) {
-        m_phaseMessage = QStringLiteral("刷新商店需要 2 金币。");
+        m_phaseMessage = QStringLiteral("\u5237\u65B0\u5546\u5E97\u9700\u8981 2 \u91D1\u5E01\u3002");
         return false;
     }
     m_shop.refresh();
-    m_phaseMessage = QStringLiteral("商店已刷新。");
+    m_phaseMessage = QStringLiteral("\u5546\u5E97\u5DF2\u5237\u65B0\u3002");
     emit stateChanged();
     return true;
 }
@@ -954,10 +937,10 @@ bool Game::upgradePopulation()
         return false;
     }
     if (!m_player.upgradePopulationCap()) {
-        m_phaseMessage = QStringLiteral("无法升级人口（金币不足或已达上限）。");
+        m_phaseMessage = QStringLiteral("\u65E0\u6CD5\u5347\u7EA7\u4EBA\u53E3\uFF08\u91D1\u5E01\u4E0D\u8DB3\u6216\u5DF2\u8FBE\u4E0A\u9650\uFF09\u3002");
         return false;
     }
-    m_phaseMessage = QStringLiteral("人口上限提升至 %1。").arg(m_player.populationCap());
+    m_phaseMessage = QStringLiteral("\u4EBA\u53E3\u4E0A\u9650\u63D0\u5347\u81F3 %1\u3002").arg(m_player.populationCap());
     emit stateChanged();
     return true;
 }
@@ -978,11 +961,11 @@ bool Game::equipFromBench(int equipSlot, int unitId)
     }
     if (!unit->equipItem(type)) {
         m_equipBench.add(type);
-        m_phaseMessage = QStringLiteral("该单位无法穿戴更多装备。");
+        m_phaseMessage = QStringLiteral("\u8BE5\u5355\u4F4D\u65E0\u6CD5\u7A7F\u6234\u66F4\u591A\u88C5\u5907\u3002");
         return false;
     }
     m_selectedEquipSlot = -1;
-    m_phaseMessage = QStringLiteral("已为 %1 装备 %2").arg(unit->displayName(), Equipment::info(type).name);
+    m_phaseMessage = QStringLiteral("\u5DF2\u4E3A %1 \u88C5\u5907 %2").arg(unit->displayName(), Equipment::info(type).name);
     emit stateChanged();
     return true;
 }
@@ -1032,7 +1015,7 @@ void Game::tryAutoMerge(Unit* acquired)
     }
 
     keeper->upgradeToTwoStar();
-    m_phaseMessage = QStringLiteral("升星成功：%1").arg(keeper->displayName());
+    m_phaseMessage = QStringLiteral("\u5347\u661F\u6210\u529F\uFF1A%1").arg(keeper->displayName());
 }
 
 void Game::tryDropEquipment(bool playerWon)
@@ -1044,7 +1027,7 @@ void Game::tryDropEquipment(bool playerWon)
         return;
     }
     if (m_equipBench.add(Equipment::randomDrop())) {
-        m_phaseMessage += QStringLiteral(" 获得装备掉落！");
+        m_phaseMessage += QStringLiteral(" \u83B7\u5F97\u88C5\u5907\u6389\u843D\uFF01");
     }
 }
 
@@ -1055,7 +1038,8 @@ static QJsonObject unitToJson(const Unit* unit, const QPoint& boardPos, int benc
     o[QStringLiteral("star")] = unit->starLevel();
     o[QStringLiteral("hp")] = unit->hp();
     o[QStringLiteral("equip")] = static_cast<int>(unit->equipment());
-    o[QStringLiteral("traits")] = QJsonArray::fromStringList(QStringList(unit->traits().begin(), unit->traits().end()));
+    o[QStringLiteral("traits")] = QJsonArray::fromStringList(
+        QStringList(unit->traits().begin(), unit->traits().end()));
     if (boardPos.x() >= 0) {
         o[QStringLiteral("bx")] = boardPos.x();
         o[QStringLiteral("by")] = boardPos.y();
@@ -1109,16 +1093,28 @@ QJsonObject Game::toJson() const
 
 bool Game::saveToFile(const QString& path, QString* errorMessage) const
 {
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) {
+    try {
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("\u65E0\u6CD5\u5199\u5165\u5B58\u6863\u6587\u4EF6\u3002");
+            }
+            return false;
+        }
+        const QJsonDocument doc(toJson());
+        file.write(doc.toJson(QJsonDocument::Indented));
+        return true;
+    } catch (const std::exception& e) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("无法写入存档文件。");
+            *errorMessage = QStringLiteral("\u5B58\u6863\u5F02\u5E38: %1").arg(e.what());
+        }
+        return false;
+    } catch (...) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("\u5B58\u6863\u51FA\u73B0\u672A\u77E5\u5F02\u5E38\u3002");
         }
         return false;
     }
-    const QJsonDocument doc(toJson());
-    file.write(doc.toJson(QJsonDocument::Indented));
-    return true;
 }
 
 bool Game::loadFromFile(const QString& path, QString* errorMessage)
@@ -1126,7 +1122,7 @@ bool Game::loadFromFile(const QString& path, QString* errorMessage)
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("无法读取存档文件。");
+            *errorMessage = QStringLiteral("\u65E0\u6CD5\u8BFB\u53D6\u5B58\u6863\u6587\u4EF6\u3002");
         }
         return false;
     }
@@ -1135,76 +1131,93 @@ bool Game::loadFromFile(const QString& path, QString* errorMessage)
     const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
     if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
         if (errorMessage) {
-            *errorMessage = QStringLiteral("存档格式错误。");
+            *errorMessage = QStringLiteral("\u5B58\u6863\u683C\u5F0F\u9519\u8BEF\u3002");
         }
         return false;
     }
 
     const QJsonObject root = doc.object();
 
-    m_combatTimer->stop();
-    m_board.clear();
-    for (Unit* u : m_allUnits) {
-        auto it = m_unitItemById.find(u->id());
-        if (it != m_unitItemById.end()) {
-            m_scene->removeItem(it->second);
-            delete it->second;
+    try {
+        m_combatTimer->stop();
+        m_board.clear();
+        for (Unit* u : m_allUnits) {
+            auto it = m_unitItemById.find(u->id());
+            if (it != m_unitItemById.end()) {
+                m_scene->removeItem(it->second);
+                delete it->second;
+            }
+            delete u;
         }
-        delete u;
-    }
-    m_allUnits.clear();
-    m_unitItems.clear();
-    m_unitItemById.clear();
-    m_equipBench.clear();
-    m_player.bench()->clear();
+        m_allUnits.clear();
+        m_unitItems.clear();
+        m_unitItemById.clear();
+        m_equipBench.clear();
+        m_player.bench()->clear();
 
-    m_player.reset();
-    m_player.setHp(root.value(QStringLiteral("hp")).toInt(m_player.maxHp()));
-    m_player.setGold(root.value(QStringLiteral("gold")).toInt(15));
-    m_player.setPopulationCap(root.value(QStringLiteral("popCap")).toInt(4));
-    m_player.setCurrentRound(root.value(QStringLiteral("round")).toInt(1));
-    m_player.setPopulationUpgradeCount(root.value(QStringLiteral("popUpgrades")).toInt(0));
+        m_player.reset();
+        m_player.setHp(root.value(QStringLiteral("hp")).toInt(m_player.maxHp()));
+        m_player.setGold(root.value(QStringLiteral("gold")).toInt(15));
+        m_player.setPopulationCap(root.value(QStringLiteral("popCap")).toInt(4));
+        m_player.setCurrentRound(root.value(QStringLiteral("round")).toInt(1));
+        m_player.setPopulationUpgradeCount(root.value(QStringLiteral("popUpgrades")).toInt(0));
 
-    const QJsonArray units = root.value(QStringLiteral("units")).toArray();
-    for (const QJsonValue& val : units) {
-        const QJsonObject o = val.toObject();
-        Unit* unit = UnitFactory::createHero(o.value(QStringLiteral("name")).toString(), Controller::PlayerCtrl);
-        setupHeroStats(unit);
-        unit->setStarLevel(o.value(QStringLiteral("star")).toInt(1));
-        unit->recalculateStats();
-        unit->setHp(o.value(QStringLiteral("hp")).toInt(unit->maxHp()));
-        unit->equipItem(static_cast<EquipType>(o.value(QStringLiteral("equip")).toInt(0)));
+        const QJsonArray units = root.value(QStringLiteral("units")).toArray();
+        for (const QJsonValue& val : units) {
+            const QJsonObject o = val.toObject();
+            Unit* unit = UnitFactory::createHero(
+                o.value(QStringLiteral("name")).toString(), Controller::PlayerCtrl);
+            setupHeroStats(unit);
+            unit->setStarLevel(o.value(QStringLiteral("star")).toInt(1));
+            unit->recalculateStats();
+            unit->setHp(o.value(QStringLiteral("hp")).toInt(unit->maxHp()));
+            unit->equipItem(static_cast<EquipType>(o.value(QStringLiteral("equip")).toInt(0)));
 
-        registerUnit(unit);
-        if (o.contains(QStringLiteral("bench"))) {
-            m_player.bench()->addUnitToSlot(unit, o.value(QStringLiteral("bench")).toInt());
-        } else if (o.contains(QStringLiteral("bx"))) {
-            const QPoint pos(o.value(QStringLiteral("bx")).toInt(), o.value(QStringLiteral("by")).toInt());
-            m_board.addUnit(unit, pos);
-        } else {
-            m_player.bench()->addUnit(unit);
+            registerUnit(unit);
+            if (o.contains(QStringLiteral("bench"))) {
+                m_player.bench()->addUnitToSlot(unit, o.value(QStringLiteral("bench")).toInt());
+            } else if (o.contains(QStringLiteral("bx"))) {
+                const QPoint pos(o.value(QStringLiteral("bx")).toInt(),
+                                 o.value(QStringLiteral("by")).toInt());
+                m_board.addUnit(unit, pos);
+            } else {
+                m_player.bench()->addUnit(unit);
+            }
         }
-    }
 
-    const QJsonArray equips = root.value(QStringLiteral("equips")).toArray();
-    for (const QJsonValue& e : equips) {
-        m_equipBench.add(static_cast<EquipType>(e.toInt()));
-    }
-
-    const QJsonArray shopOffers = root.value(QStringLiteral("shopOffers")).toArray();
-    const QJsonArray shopCosts = root.value(QStringLiteral("shopCosts")).toArray();
-    for (int i = 0; i < Shop::SLOT_COUNT; ++i) {
-        if (i < shopOffers.size() && !shopOffers.at(i).toString().isEmpty()) {
-            m_shop.setSlot(i, shopOffers.at(i).toString(), shopCosts.at(i).toInt(3));
-        } else {
-            m_shop.clearSlot(i);
+        const QJsonArray equips = root.value(QStringLiteral("equips")).toArray();
+        for (const QJsonValue& e : equips) {
+            m_equipBench.add(static_cast<EquipType>(e.toInt()));
         }
-    }
 
-    m_result = static_cast<GameResult>(root.value(QStringLiteral("result")).toInt(0));
-    clearEnemyUnits();
-    beginPrepPhase();
-    m_phaseMessage = QStringLiteral("存档已加载。");
-    emit stateChanged();
-    return true;
+        const QJsonArray shopOffers = root.value(QStringLiteral("shopOffers")).toArray();
+        const QJsonArray shopCosts = root.value(QStringLiteral("shopCosts")).toArray();
+        for (int i = 0; i < Shop::SLOT_COUNT; ++i) {
+            if (i < shopOffers.size() && !shopOffers.at(i).toString().isEmpty()) {
+                m_shop.setSlot(i, shopOffers.at(i).toString(),
+                               shopCosts.at(i).toInt(3));
+            } else {
+                m_shop.clearSlot(i);
+            }
+        }
+
+        m_result = static_cast<GameResult>(root.value(QStringLiteral("result")).toInt(0));
+        clearEnemyUnits();
+        beginPrepPhase();
+        m_phaseMessage = QStringLiteral("\u5B58\u6863\u5DF2\u52A0\u8F7D\u3002");
+        emit stateChanged();
+        return true;
+    } catch (const std::exception& e) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("\u8BFB\u6863\u5F02\u5E38: %1").arg(e.what());
+        }
+        reset();
+        return false;
+    } catch (...) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("\u8BFB\u6863\u51FA\u73B0\u672A\u77E5\u5F02\u5E38\u3002");
+        }
+        reset();
+        return false;
+    }
 }
