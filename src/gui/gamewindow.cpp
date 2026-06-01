@@ -196,8 +196,8 @@ void GameWindow::refreshPanels()
             btn->setText(Equipment::info(t).name);
             btn->setEnabled(m_game->phase() == GamePhase::Prep);
         } else {
-            btn->setText(QStringLiteral("空"));
-            btn->setEnabled(false);
+            btn->setText(QStringLiteral("\u7A7A"));
+            btn->setEnabled(m_game->phase() == GamePhase::Prep);
         }
     }
 

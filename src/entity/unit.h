@@ -110,6 +110,9 @@ public:
     void addBonusAtk(int v) { m_bonusAtk += v; }
     void setSkillDamageMultiplier(qreal m) { m_skillDamageMultiplier = m; }
     void setDoubleAttackChance(qreal c) { m_doubleAttackChance = c; }
+    const QSet<QString>& activeSynergies() const { return m_activeSynergies; }
+    void setActiveSynergies(const QSet<QString>& s) { m_activeSynergies = s; }
+    void clearActiveSynergies() { m_activeSynergies.clear(); }
 
     virtual QString heroType() const { return QStringLiteral("基础"); }
     virtual void castSkill(Board& board, const QList<Unit*>& allUnits);
@@ -144,6 +147,7 @@ protected:
 
     QPoint m_position;
     QSet<QString> m_traits;
+    QSet<QString> m_activeSynergies;
 
     UnitState m_state;
     int m_targetId;

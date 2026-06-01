@@ -2,27 +2,30 @@
 #include <QRandomGenerator>
 
 EquipmentInfo Equipment::info(EquipType type)
+/*返回装备类型对应的名字和效果描述*/
 {
     switch (type) {
     case EquipType::IronSword:
-        return {type, QStringLiteral("铁剑"), QStringLiteral("攻击力 +15")};
+        return {type, QStringLiteral("\u94C1\u5251"), QStringLiteral("\u653B\u51FB\u529B +15")};
     case EquipType::ChainMail:
-        return {type, QStringLiteral("锁子甲"), QStringLiteral("生命值 +150")};
+        return {type, QStringLiteral("\u9501\u5B50\u7532"), QStringLiteral("\u751F\u547D\u503C +150")};
     case EquipType::SwiftGloves:
-        return {type, QStringLiteral("急速手套"), QStringLiteral("攻击速度 +20%")};
+        return {type, QStringLiteral("\u6025\u901F\u624B\u5957"), QStringLiteral("\u653B\u51FB\u901F\u5EA6 +20%")};
     case EquipType::ManaCrystal:
-        return {type, QStringLiteral("蓝水晶"), QStringLiteral("最大法力 -30")};
+        return {type, QStringLiteral("\u84DD\u6C34\u6676"), QStringLiteral("\u6700\u5927\u6CD5\u529B -30")};
     default:
         return {EquipType::None, QString(), QString()};
     }
 }
 
 QString Equipment::typeToString(EquipType type)
+/*装备类型枚举转字符串名称*/
 {
     return info(type).name;
 }
 
 EquipType Equipment::randomDrop()
+/*随机掉落一件基础装备，四种等概率*/
 {
     const int roll = QRandomGenerator::global()->bounded(4);
     switch (roll) {

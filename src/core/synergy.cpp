@@ -5,6 +5,7 @@
 
 QHash<QString, int> SynergySystem::countTraits(const Board& board, const Bench& bench,
                                                const QList<Unit*>& units) const
+/*统计棋盘上所有己方单位的羁绊标签数量*/
 {
     QHash<QString, int> counts;
     auto addUnit = [&](Unit* unit) {
@@ -29,14 +30,15 @@ QHash<QString, int> SynergySystem::countTraits(const Board& board, const Bench& 
 
 SynergyState SynergySystem::compute(const Board& board, const Bench& bench,
                                     const QList<Unit*>& units) const
+/*根据羁绊计数计算全局状态效果（机制改变类羁绊）*/
 {
     const QHash<QString, int> counts = countTraits(board, bench, units);
     SynergyState state;
 
-    if (counts.value(QStringLiteral("法师")) >= 3) {
+    if (counts.value(QStringLiteral("\u6CD5\u5E08")) >= 3) {
         state.skillDamageMultiplier = 2.0;
     }
-    if (counts.value(QStringLiteral("游侠")) >= 2) {
+    if (counts.value(QStringLiteral("\u6E38\u4FA0")) >= 2) {
         state.rangerDoubleAttackChance = 0.35;
     }
     return state;
@@ -44,6 +46,7 @@ SynergyState SynergySystem::compute(const Board& board, const Bench& bench,
 
 void SynergySystem::applyToPlayerUnits(const Board& board, const Bench& bench,
                                        const QList<Unit*>& units) const
+/*应用羁绊效果到所有己方单位：重置→计算光环类→计算机制类→标记激活羁绊用于光环显示*/
 {
     const QHash<QString, int> counts = countTraits(board, bench, units);
 
@@ -80,17 +83,17 @@ void SynergySystem::applyToPlayerUnits(const Board& board, const Bench& bench,
         }
     };
 
-    if (counts.value(QStringLiteral("战士")) >= 4) {
-        applyAuraHp(QStringLiteral("战士"), 4, 70);
-        applyAuraAtk(QStringLiteral("战士"), 4, 10);
-    } else if (counts.value(QStringLiteral("战士")) >= 2) {
-        applyAuraHp(QStringLiteral("战士"), 2, 80);
+    if (counts.value(QStringLiteral("\u6218\u58EB")) >= 4) {
+        applyAuraHp(QStringLiteral("\u6218\u58EB"), 4, 70);
+        applyAuraAtk(QStringLiteral("\u6218\u58EB"), 4, 10);
+    } else if (counts.value(QStringLiteral("\u6218\u58EB")) >= 2) {
+        applyAuraHp(QStringLiteral("\u6218\u58EB"), 2, 80);
     }
 
-    applyAuraAtk(QStringLiteral("亡灵"), 2, 15);
-    applyAuraAtk(QStringLiteral("亡灵"), 4, 15);
+    applyAuraAtk(QStringLiteral("\u4EA1\u7075"), 2, 15);
+    applyAuraAtk(QStringLiteral("\u4EA1\u7075"), 4, 15);
 
-    applyAuraHp(QStringLiteral("辅助"), 2, 50);
+    applyAuraHp(QStringLiteral("\u8F85\u52A9"), 2, 50);
 
     const SynergyState state = compute(board, bench, units);
     for (Unit* unit : units) {
@@ -98,21 +101,46 @@ void SynergySystem::applyToPlayerUnits(const Board& board, const Bench& bench,
             continue;
         }
         unit->setSkillDamageMultiplier(state.skillDamageMultiplier);
-        if (unit->hasTrait(QStringLiteral("游侠"))) {
+        if (unit->hasTrait(QStringLiteral("\u6E38\u4FA0"))) {
             unit->setDoubleAttackChance(state.rangerDoubleAttackChance);
         }
+    }
+
+    QSet<QString> activeSet;
+    if (counts.value(QStringLiteral("\u6218\u58EB")) >= 2) activeSet.insert(QStringLiteral("\u6218\u58EB"));
+    if (counts.value(QStringLiteral("\u4EA1\u7075")) >= 2) activeSet.insert(QStringLiteral("\u4EA1\u7075"));
+    if (counts.value(QStringLiteral("\u6CD5\u5E08")) >= 3) activeSet.insert(QStringLiteral("\u6CD5\u5E08"));
+    if (counts.value(QStringLiteral("\u6E38\u4FA0")) >= 2) activeSet.insert(QStringLiteral("\u6E38\u4FA0"));
+    if (counts.value(QStringLiteral("\u8F85\u52A9")) >= 2) activeSet.insert(QStringLiteral("\u8F85\u52A9"));
+
+    for (Unit* unit : units) {
+        if (!unit || unit->owner() != Controller::PlayerCtrl) {
+            continue;
+        }
+        if (board.getUnitAt(unit->position()) != unit) {
+            unit->clearActiveSynergies();
+            continue;
+        }
+        QSet<QString> unitActive;
+        for (const QString& trait : unit->traits()) {
+            if (activeSet.contains(trait)) {
+                unitActive.insert(trait);
+            }
+        }
+        unit->setActiveSynergies(unitActive);
     }
 }
 
 QString SynergySystem::summary(const Board& board, const Bench& bench,
                                const QList<Unit*>& units) const
+/*生成羁绊状态摘要文本，用于界面显示*/
 {
     const QHash<QString, int> c = countTraits(board, bench, units);
   QStringList lines;
-    lines << QStringLiteral("战士[%1] 2:全体战士+80HP 4:+70HP+10ATK").arg(c.value(QStringLiteral("战士")));
-    lines << QStringLiteral("亡灵[%1] 2:+15ATK 4:+15ATK").arg(c.value(QStringLiteral("亡灵")));
-    lines << QStringLiteral("法师[%1] 3:友军技能伤害×2").arg(c.value(QStringLiteral("法师")));
-    lines << QStringLiteral("游侠[%1] 2:35%连击").arg(c.value(QStringLiteral("游侠")));
-    lines << QStringLiteral("辅助[%1] 2:全体+50HP").arg(c.value(QStringLiteral("辅助")));
+    lines << QStringLiteral("\u6218\u58EB[%1] 2:\u5168\u4F53\u6218\u58EB+80HP 4:+70HP+10ATK").arg(c.value(QStringLiteral("\u6218\u58EB")));
+    lines << QStringLiteral("\u4EA1\u7075[%1] 2:+15ATK 4:+15ATK").arg(c.value(QStringLiteral("\u4EA1\u7075")));
+    lines << QStringLiteral("\u6CD5\u5E08[%1] 3:\u53CB\u519B\u6280\u80FD\u4F24\u5BB3\u00D72").arg(c.value(QStringLiteral("\u6CD5\u5E08")));
+    lines << QStringLiteral("\u6E38\u4FA0[%1] 2:35%\u8FDE\u51FB").arg(c.value(QStringLiteral("\u6E38\u4FA0")));
+    lines << QStringLiteral("\u8F85\u52A9[%1] 2:\u5168\u4F53+50HP").arg(c.value(QStringLiteral("\u8F85\u52A9")));
     return lines.join(QStringLiteral(" | "));
 }

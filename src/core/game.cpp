@@ -931,6 +931,7 @@ void Game::handleDropOnBoard(int unitId, const QPoint& source, const QPointF& sc
 
     m_dragDrop.endDrag();
 
+    m_synergy.applyToPlayerUnits(m_board, *m_player.bench(), m_allUnits);
     syncFromBoard();
     syncFromBench();
     emit stateChanged();
@@ -1011,6 +1012,16 @@ bool Game::equipFromBench(int equipSlot, int unitId)
     Unit* unit = findUnitById(unitId);
     if (!unit || unit->owner() != Controller::PlayerCtrl) {
         return false;
+    }
+
+    if (unit->equipment() != EquipType::None) {
+        const EquipType removed = unit->equipment();
+        unit->clearEquipment();
+        m_equipBench.add(removed);
+        m_selectedEquipSlot = -1;
+        m_phaseMessage = QStringLiteral("\u5DF2\u5378\u4E0B %1 \u7684 %2\uFF0C\u8FD4\u56DE\u88C5\u5907\u680F\u3002").arg(unit->displayName(), Equipment::info(removed).name);
+        emit stateChanged();
+        return true;
     }
 
     const EquipType type = m_equipBench.take(equipSlot);

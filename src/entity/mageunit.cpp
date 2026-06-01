@@ -3,12 +3,14 @@
 #include <QtMath>
 
 MageUnit::MageUnit(Controller owner)
-    : Unit(QStringLiteral("法师"), owner)
+    : Unit(QStringLiteral("\u6CD5\u5E08"), owner)
+/*法师：远程法术输出，高ATK短蓝条，羁绊标签为"法师"*/
 {
-    addTrait(QStringLiteral("法师"));
+    addTrait(QStringLiteral("\u6CD5\u5E08"));
 }
 
 void MageUnit::castSkill(Board&, const QList<Unit*>& allUnits)
+/*技能【烈焰风暴】：对周围2格内所有敌方单位造成(ATK+25)×技能伤害的AOE伤害*/
 {
     setMana(0);
     const QPoint center = position();

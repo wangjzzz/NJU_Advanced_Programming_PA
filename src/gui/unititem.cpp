@@ -59,6 +59,28 @@ void UnitItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         }
     }
 
+    if (m_unit && m_unit->owner() != Controller::EnemyCtrl
+        && !m_unit->activeSynergies().isEmpty()) {
+        const QColor colors[] = {
+            QColor(255, 120, 60, 140),   // 战士-橙
+            QColor(150, 80, 180, 140),   // 亡灵-紫
+            QColor(80, 140, 240, 140),   // 法师-蓝
+            QColor(100, 210, 120, 140),  // 游侠-绿
+            QColor(255, 210, 80, 140),   // 辅助-金
+        };
+        int idx = 0;
+        const auto& syns = m_unit->activeSynergies();
+        if (syns.contains(QStringLiteral("\u6218\u58EB"))) idx = 0;
+        else if (syns.contains(QStringLiteral("\u4EA1\u7075"))) idx = 1;
+        else if (syns.contains(QStringLiteral("\u6CD5\u5E08"))) idx = 2;
+        else if (syns.contains(QStringLiteral("\u6E38\u4FA0"))) idx = 3;
+        else if (syns.contains(QStringLiteral("\u8F85\u52A9"))) idx = 4;
+
+        painter->setPen(QPen(colors[idx], 3));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawEllipse(QRectF(-24, 12, 48, 16));
+    }
+
     if (m_unit && m_unit->starLevel() > 1) {
         painter->setPen(Qt::NoPen);
         painter->setBrush(QColor(255, 215, 0));

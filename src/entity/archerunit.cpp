@@ -2,12 +2,14 @@
 #include "core/board.h"
 
 ArcherUnit::ArcherUnit(Controller owner)
-    : Unit(QStringLiteral("弓手"), owner)
+    : Unit(QStringLiteral("\u5F13\u624B"), owner)
+/*弓手：远程游侠，射程3格，羁绊标签为"游侠"*/
 {
-    addTrait(QStringLiteral("游侠"));
+    addTrait(QStringLiteral("\u6E38\u4FA0"));
 }
 
 void ArcherUnit::castSkill(Board& board, const QList<Unit*>& allUnits)
+/*技能【穿云箭】：对同一行所有敌方单位造成(ATK+15)×技能伤害的伤害*/
 {
     setMana(0);
     const int row = position().y();
