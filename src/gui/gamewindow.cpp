@@ -32,6 +32,7 @@ GameWindow::GameWindow(QWidget* parent)
     , m_upgradePopButton(new QPushButton(QStringLiteral("升级人口"), this))
     , m_saveButton(new QPushButton(QStringLiteral("存档"), this))
     , m_loadButton(new QPushButton(QStringLiteral("读档"), this))
+    , m_equipDropLabel(nullptr)
     , m_game(new Game(this))
 {
     for (QPushButton*& btn : m_shopButtons) {
@@ -55,6 +56,7 @@ void GameWindow::onResetClicked()
 
 void GameWindow::onStartCombatClicked()
 {
+    m_game->clearEquipDropMessage();
     m_game->startCombat();
     refreshPanels();
 }
@@ -199,6 +201,9 @@ void GameWindow::refreshPanels()
         }
     }
 
+    const QString dropMsg = m_game->equipDropMessage();
+    m_equipDropLabel->setText(dropMsg.isEmpty() ? QString() : dropMsg);
+
     updateButtons();
 
     const Unit* unit = m_game->selectedUnit();
@@ -295,11 +300,19 @@ void GameWindow::setupUI()
     QHBoxLayout* equipLayout = new QHBoxLayout(equipBar);
     equipLayout->addWidget(new QLabel(QStringLiteral("装备栏:"), this));
     for (int i = 0; i < 6; ++i) {
-        m_equipButtons[i] = new QPushButton(QStringLiteral("空"), this);
+        m_equipButtons[i] = new QPushButton(QStringLiteral("\u7A7A"), this);
         m_equipButtons[i]->setProperty("equipSlot", i);
         connect(m_equipButtons[i], &QPushButton::clicked, this, &GameWindow::onEquipSlotClicked);
         equipLayout->addWidget(m_equipButtons[i]);
     }
+    m_equipDropLabel = new QLabel(this);
+    QFont dropFont = m_equipDropLabel->font();
+    dropFont.setBold(true);
+    dropFont.setPointSize(12);
+    m_equipDropLabel->setFont(dropFont);
+    m_equipDropLabel->setStyleSheet(QStringLiteral("color: #ffcc33;"));
+    equipLayout->addWidget(m_equipDropLabel);
+    equipLayout->addStretch();
     m_mainLayout->addWidget(equipBar);
 
     m_view->setRenderHint(QPainter::Antialiasing, true);

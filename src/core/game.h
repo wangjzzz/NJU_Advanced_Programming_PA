@@ -26,9 +26,11 @@ class Unit;
 class QGraphicsScene;
 class QGraphicsRectItem;
 class QGraphicsLineItem;
+class QGraphicsSimpleTextItem;
 class GridItem;
 class UnitItem;
 class BenchSlotItem;
+class OverlayItem;
 
 class Game : public QObject
 {
@@ -55,6 +57,8 @@ public:
     GameResult result() const { return m_result; }
     QString phaseMessage() const { return m_phaseMessage; }
     QString synergySummary() const;
+    QString equipDropMessage() const { return m_equipDropMessage; }
+    void clearEquipDropMessage() { m_equipDropMessage.clear(); }
 
     Unit* selectedUnit() const;
     const QList<Unit*>& allUnits() const { return m_allUnits; }
@@ -76,6 +80,8 @@ public:
     void handleDropOnBoard(int unitId, const QPoint& source, const QPointF& scenePos);
     void handleUnitClicked(int unitId);
     void sellUnit(int unitId);
+    void showBattleOverlay(bool won, bool isGameOver);
+    void hideBattleOverlay();
 
 signals:
     void stateChanged();
@@ -132,6 +138,8 @@ private:
     std::vector<UnitItem*> m_unitItems;
     std::unordered_map<int, UnitItem*> m_unitItemById;
     std::vector<QGraphicsLineItem*> m_attackLineItems;
+    OverlayItem* m_overlayItem;
+    QString m_equipDropMessage;
 
     GamePhase m_phase;
     GameResult m_result;

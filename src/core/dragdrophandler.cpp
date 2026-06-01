@@ -14,6 +14,7 @@ DragDropHandler::DragDropHandler(Board& board, Player& player)
 }
 
 void DragDropHandler::beginDrag(int unitId, int benchSlot, const QPoint& sourceGrid)
+/*开始拖拽：记录当前拖拽单位的id、来源备战区槽位和来源棋盘坐标*/
 {
     m_dragActive = true;
     m_activeUnitId = unitId;
@@ -22,6 +23,7 @@ void DragDropHandler::beginDrag(int unitId, int benchSlot, const QPoint& sourceG
 }
 
 void DragDropHandler::endDrag()
+/*结束拖拽：重置所有拖拽状态*/
 {
     m_dragActive = false;
     m_activeUnitId = -1;
@@ -31,6 +33,7 @@ void DragDropHandler::endDrag()
 
 GridItem* DragDropHandler::findGridItem(const std::vector<GridItem*>& items,
                                         const QPoint& gridPos) const
+/*在场景格子列表中查找指定棋盘坐标对应的GridItem*/
 {
     for (GridItem* item : items) {
         if (item && item->gridPos() == gridPos) {
@@ -42,6 +45,7 @@ GridItem* DragDropHandler::findGridItem(const std::vector<GridItem*>& items,
 
 BenchSlotItem* DragDropHandler::findBenchSlot(const std::vector<BenchSlotItem*>& items,
                                               int slot) const
+/*在备战区槽位列表中查找指定编号对应的BenchSlotItem*/
 {
     for (BenchSlotItem* item : items) {
         if (item && item->slot() == slot) {
@@ -52,6 +56,7 @@ BenchSlotItem* DragDropHandler::findBenchSlot(const std::vector<BenchSlotItem*>&
 }
 
 void DragDropHandler::clearGridHighlights(std::vector<GridItem*>& items) const
+/*清除所有棋盘格子的悬停高亮状态*/
 {
     for (GridItem* item : items) {
         if (item) {
@@ -62,6 +67,7 @@ void DragDropHandler::clearGridHighlights(std::vector<GridItem*>& items) const
 }
 
 void DragDropHandler::clearBenchHighlights(std::vector<BenchSlotItem*>& items) const
+/*清除所有备战区槽位的悬停高亮状态*/
 {
     for (BenchSlotItem* item : items) {
         if (item) {
@@ -74,6 +80,7 @@ void DragDropHandler::clearBenchHighlights(std::vector<BenchSlotItem*>& items) c
 bool DragDropHandler::canDropOnBoard(Unit* unit, const QPoint& source,
                                      const QPoint& target, bool allowSwap,
                                      bool canDrag) const
+/*校验能否将单位放到棋盘target位置：检查归属、合法性、人口上限、交换规则*/
 {
     if (!canDrag || !unit || unit->owner() != Controller::PlayerCtrl) {
         return false;
@@ -113,6 +120,7 @@ bool DragDropHandler::canDropOnBoard(Unit* unit, const QPoint& source,
 
 bool DragDropHandler::canDropOnBench(Unit* unit, int slot, bool allowSwap,
                                      bool canDrag) const
+/*校验能否将单位放到备战区slot位置：检查归属、槽位有效性、交换规则*/
 {
     if (!canDrag || !unit || unit->owner() != Controller::PlayerCtrl
         || !m_player.bench()->isSlotValid(slot)) {
@@ -128,6 +136,7 @@ bool DragDropHandler::canDropOnBench(Unit* unit, int slot, bool allowSwap,
 
 void DragDropHandler::applyBoardDrop(Unit* unit, const QPoint& source,
                                      const QPoint& target)
+/*执行棋盘落子：目标位为空则直接放置，有己方单位则交换位置*/
 {
     Unit* occupant = m_board.getUnitAt(target);
     if (occupant && occupant != unit) {
@@ -151,6 +160,7 @@ void DragDropHandler::applyBoardDrop(Unit* unit, const QPoint& source,
 
 void DragDropHandler::applyBenchDrop(Unit* unit, int sourceBenchSlot,
                                      int targetBenchSlot)
+/*执行备战区落子：目标槽为空则直接放置，有单位则交换两个槽位*/
 {
     Unit* occupant = m_player.bench()->getUnitAt(targetBenchSlot);
     if (occupant && occupant != unit) {

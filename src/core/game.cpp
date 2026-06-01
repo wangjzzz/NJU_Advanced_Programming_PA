@@ -7,6 +7,7 @@
 #include "entity/unit.h"
 #include "gui/benchslotitem.h"
 #include "gui/griditem.h"
+#include "gui/overlayitem.h"
 #include "gui/unititem.h"
 #include <QFile>
 #include <QGraphicsLineItem>
@@ -29,6 +30,7 @@ Game::Game(QObject* parent)
     : QObject(parent)
     , m_scene(new QGraphicsScene(this))
     , m_sellZoneItem(nullptr)
+    , m_overlayItem(nullptr)
     , m_combatTimer(new QTimer(this))
     , m_geometry(Board::ROWS, Board::COLS, 46.0, 69.0,
                  Board::ROWS * 69.0 + 30.0, 55.0)
@@ -110,6 +112,7 @@ void Game::startCombat()
 void Game::beginPrepPhase()
 {
     m_phase = GamePhase::Prep;
+
     spawnEnemiesForRound(m_player.currentRound());
     ensureUnitItems();
     syncFromBoard();
@@ -157,14 +160,15 @@ void Game::beginResolvePhase(bool playerWon)
         m_phaseMessage = QStringLiteral("\u6218\u6597\u5931\u8D25\uFF0C\u73A9\u5BB6\u53D7\u5230\u4F24\u5BB3\u3002");
     }
 
-    cleanupAfterCombat();
     tryDropEquipment(playerWon);
+    cleanupAfterCombat();
     m_synergy.applyToPlayerUnits(m_board, *m_player.bench(), m_allUnits);
 
     if (!m_player.isAlive()) {
         m_result = GameResult::Defeat;
         m_phaseMessage = QStringLiteral("\u6E38\u620F\u5931\u8D25\uFF1A\u73A9\u5BB6\u751F\u547D\u503C\u5F52\u96F6\u3002");
         emit stateChanged();
+        showBattleOverlay(false, true);
         return;
     }
 
@@ -172,6 +176,7 @@ void Game::beginResolvePhase(bool playerWon)
         m_result = GameResult::Victory;
         m_phaseMessage = QStringLiteral("\u606D\u559C\u901A\u5173\uFF01\u4F60\u51FB\u8D25\u4E86\u5168\u90E8 %1 \u8F6E\u654C\u4EBA\u3002").arg(CombatConst::kMaxRounds);
         emit stateChanged();
+        showBattleOverlay(true, true);
         return;
     }
 
@@ -188,6 +193,50 @@ void Game::beginResolvePhase(bool playerWon)
         m_phaseMessage = QStringLiteral("\u4E0A\u8F6E\u5931\u8D25\uFF0C\u91CD\u65B0\u90E8\u7F72\u540E\u7EE7\u7EED\u7B2C %1 \u8F6E\u3002").arg(m_player.currentRound());
     }
     emit stateChanged();
+    showBattleOverlay(playerWon, false);
+}
+
+void Game::showBattleOverlay(bool won, bool isGameOver)
+{
+    hideBattleOverlay();
+
+    const QRectF viewRect = m_scene->sceneRect();
+    const qreal w = qMin(viewRect.width() * 0.55, 500.0);
+    const qreal h = qMin(viewRect.height() * 0.35, 220.0);
+    const QRectF overlayRect(
+        viewRect.x() + (viewRect.width() - w) / 2,
+        viewRect.y() + (viewRect.height() - h) / 2,
+        w, h);
+
+    QString title;
+    QString subtext;
+    if (isGameOver) {
+        title = won ? QStringLiteral("\u901A\u5173\uFF01")
+                    : QStringLiteral("\u5931\u8D25\u2026");
+        subtext = won
+            ? QStringLiteral("\u606D\u559C\u4F60\u51FB\u8D25\u4E86\u6240\u6709\u654C\u4EBA\uFF01")
+            : QStringLiteral("\u4F60\u7684\u961F\u4F0D\u88AB\u6D88\u706D\u4E86\u3002");
+    } else {
+        title = won ? QStringLiteral("\u80DC\u5229\uFF01")
+                    : QStringLiteral("\u5931\u8D25");
+        subtext = won
+            ? QStringLiteral("\u8FD9\u4E00\u8F6E\u4F60\u8D62\u4E86\uFF01")
+            : QStringLiteral("\u8FD9\u4E00\u8F6E\u4F60\u8F93\u4E86\u3002");
+    }
+
+    m_overlayItem = new OverlayItem(overlayRect, title, subtext);
+    m_scene->addItem(m_overlayItem);
+    connect(m_overlayItem, &OverlayItem::dismissed, this, &Game::hideBattleOverlay);
+}
+
+void Game::hideBattleOverlay()
+{
+    if (!m_overlayItem) {
+        return;
+    }
+    m_scene->removeItem(m_overlayItem);
+    delete m_overlayItem;
+    m_overlayItem = nullptr;
 }
 
 void Game::prepareUnitsForCombat()
@@ -482,7 +531,16 @@ void Game::spawnEnemiesForRound(int round)
         m_board.addUnit(enemy, available[i]);
     }
 
-    if ((round == 4 || round == 7 || round == 10) && enemyCount < available.size()) {
+    if (round == 10 && enemyCount + 1 < available.size()) {
+        const QString bossName = QStringLiteral("\u6076\u9B54");
+        const QString bossTrait = QStringLiteral("\u6218\u58EB");
+        Unit* boss1 = UnitFactory::createEnemy(bossName, bossTrait, round, true);
+        registerUnit(boss1);
+        m_board.addUnit(boss1, available[enemyCount]);
+        Unit* boss2 = UnitFactory::createEnemy(bossName, bossTrait, round, true);
+        registerUnit(boss2);
+        m_board.addUnit(boss2, available[enemyCount + 1]);
+    } else if ((round == 4 || round == 7) && enemyCount < available.size()) {
         const QString bossName = QStringLiteral("\u6076\u9B54");
         const QString bossTrait = QStringLiteral("\u6218\u58EB");
         Unit* boss = UnitFactory::createEnemy(bossName, bossTrait, round, true);
@@ -1028,6 +1086,7 @@ void Game::tryDropEquipment(bool playerWon)
     }
     if (m_equipBench.add(Equipment::randomDrop())) {
         m_phaseMessage += QStringLiteral(" \u83B7\u5F97\u88C5\u5907\u6389\u843D\uFF01");
+        m_equipDropMessage = QStringLiteral("\u6389\u843D\u88C5\u5907!");
     }
 }
 

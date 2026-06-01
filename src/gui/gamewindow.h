@@ -52,6 +52,7 @@ private:
     QPushButton* m_loadButton;
     std::array<QPushButton*, 5> m_shopButtons;
     std::array<QPushButton*, 6> m_equipButtons;
+    QLabel* m_equipDropLabel;
     Game* m_game;
 };
 
