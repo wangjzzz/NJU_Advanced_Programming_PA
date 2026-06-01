@@ -52,12 +52,14 @@ Game::~Game()
 }
 
 void Game::initialize()
+/*初始化游戏：构建场景、重置状态*/
 {
     buildScene();
     reset();
 }
 
 void Game::reset()
+/*重置游戏：清除所有单位、玩家状态归零、进入第一轮准备阶段*/
 {
     m_combatTimer->stop();
     m_board.clear();
@@ -88,6 +90,7 @@ void Game::reset()
 }
 
 void Game::startCombat()
+/*开始战斗：校验至少有一个部署单位，生成敌人，快照部署，启动战斗定时器*/
 {
     if (m_phase != GamePhase::Prep || m_result != GameResult::Playing) {
         return;
@@ -110,6 +113,7 @@ void Game::startCombat()
 }
 
 void Game::beginPrepPhase()
+/*进入准备阶段：生成敌人、同步UI、发放利息/连胜奖励、刷新商店、计算羁绊*/
 {
     m_phase = GamePhase::Prep;
 
@@ -142,6 +146,7 @@ void Game::beginPrepPhase()
 }
 
 void Game::beginResolvePhase(bool playerWon)
+/*结算阶段：停止战斗、更新连胜/连败、奖惩金币、清场、装备掉落、检查胜负*/
 {
     m_combatTimer->stop();
     clearAttackLines();
@@ -197,6 +202,7 @@ void Game::beginResolvePhase(bool playerWon)
 }
 
 void Game::showBattleOverlay(bool won, bool isGameOver)
+/*显示战斗结果浮层：胜利/失败/通关，点击任意位置关闭*/
 {
     hideBattleOverlay();
 
@@ -240,6 +246,7 @@ void Game::hideBattleOverlay()
 }
 
 void Game::prepareUnitsForCombat()
+/*战斗前准备：应用羁绊、重置所有己方单位战斗状态、清零法力*/
 {
     m_synergy.applyToPlayerUnits(m_board, *m_player.bench(), m_allUnits);
     for (Unit* unit : m_allUnits) {
@@ -254,6 +261,7 @@ void Game::prepareUnitsForCombat()
 }
 
 void Game::cleanupAfterCombat()
+/*战斗后清场：移除阵亡单位、恢复幸存者到战前位置、清除敌人*/
 {
     QList<Unit*> deadUnits;
     for (Unit* unit : m_allUnits) {
@@ -291,6 +299,7 @@ void Game::cleanupAfterCombat()
 }
 
 void Game::snapshotPlayerDeployment()
+/*快照当前己方部署：记录单位所在的棋盘位置和备战区槽位，用于战后恢复*/
 {
     m_preCombatBoardPositions.clear();
     m_preCombatBenchSlots.clear();
@@ -310,6 +319,7 @@ void Game::snapshotPlayerDeployment()
 }
 
 void Game::restorePlayerDeployment()
+/*恢复己方幸存单位到战前位置，优先恢复棋盘位置，失败则放备战区*/
 {
     QList<Unit*> survivors;
     for (Unit* unit : m_allUnits) {
@@ -374,6 +384,7 @@ QPoint Game::findFirstEmptyPlayerCell() const
 }
 
 void Game::onCombatTick()
+/*战斗帧更新：驱动战斗系统、绘制攻击连线、同步UI、检测战斗结束*/
 {
     if (m_phase != GamePhase::Combat) {
         return;
@@ -425,6 +436,7 @@ bool Game::hasEnemiesOnBoard() const
 }
 
 void Game::setupHeroStats(Unit* unit)
+/*根据英雄名称设置初始属性和基础值*/
 {
     if (!unit) {
         return;
@@ -489,6 +501,7 @@ void Game::clearEnemyUnits()
 }
 
 void Game::spawnEnemiesForRound(int round)
+/*根据回合数生成敌方阵容：每2轮+1敌人，第4/7轮出boss，第10轮出双boss*/
 {
     struct EnemyType {
         QString name;
@@ -550,6 +563,7 @@ void Game::spawnEnemiesForRound(int round)
 }
 
 Unit* Game::findUnitById(int unitId) const
+/*在所有单位列表中按id查找Unit*/
 {
     for (Unit* unit : m_allUnits) {
         if (unit && unit->id() == unitId) {
@@ -566,6 +580,7 @@ UnitItem* Game::findUnitItem(int unitId) const
 }
 
 void Game::buildScene()
+/*构建整个场景：创建棋盘六边形格子、备战区槽位、出售区、连接拖拽信号*/
 {
     m_scene->clear();
     m_gridItems.clear();
@@ -625,6 +640,7 @@ void Game::buildScene()
 }
 
 void Game::ensureUnitItems()
+/*确保所有单位都有对应的UnitItem，新单位创建并连接信号*/
 {
     for (Unit* unit : m_allUnits) {
         if (m_unitItemById.find(unit->id()) != m_unitItemById.end()) {
@@ -664,6 +680,7 @@ void Game::clearAttackLines()
 }
 
 void Game::drawAttackLines()
+/*绘制本帧攻击连线：遍历战斗系统记录的攻击对，画橙色伤害线或绿色治疗线*/
 {
     clearAttackLines();
 
@@ -696,6 +713,7 @@ void Game::drawAttackLines()
 }
 
 void Game::syncFromBoard()
+/*将棋盘数据同步到UI：更新单位Item位置、可见性、z值*/
 {
     for (UnitItem* item : m_unitItems) {
         if (!item || !item->unit()) {
@@ -721,6 +739,7 @@ void Game::syncFromBoard()
 }
 
 void Game::syncFromBench()
+/*将备战区数据同步到UI：更新单位Item位置、可见性、z值*/
 {
     for (UnitItem* item : m_unitItems) {
         if (!item || !item->unit()) {
@@ -754,6 +773,7 @@ void Game::handleUnitClicked(int unitId)
 }
 
 void Game::sellUnit(int unitId)
+/*出售单位：右键或拖拽到出售区时触发，返还金币、清除单位、更新羁绊*/
 {
     if (m_phase != GamePhase::Prep || m_result != GameResult::Playing) {
         return;
@@ -801,6 +821,7 @@ void Game::sellUnit(int unitId)
 }
 
 void Game::handleDragStarted(int unitId, const QPoint& sourceGrid, const QPointF& scenePos)
+/*拖拽开始：记录来源、提升单位z值*/
 {
     if (!canDragUnits()) {
         return;
@@ -823,6 +844,7 @@ void Game::handleDragStarted(int unitId, const QPoint& sourceGrid, const QPointF
 }
 
 void Game::handleDragMoved(int unitId, const QPoint&, const QPointF& scenePos)
+/*拖拽移动：移动单位、更新棋盘/备战区/出售区高亮*/
 {
     if (!m_dragDrop.isActive()) {
         return;
@@ -871,6 +893,7 @@ void Game::handleDragMoved(int unitId, const QPoint&, const QPointF& scenePos)
 }
 
 void Game::handleDropOnBoard(int unitId, const QPoint& source, const QPointF& scenePos)
+/*拖拽释放：按鼠标位置优先出售区→备战区→棋盘，执行落子后重算羁绊*/
 {
     if (!m_dragDrop.isActive()) {
         return;
@@ -943,6 +966,7 @@ QString Game::synergySummary() const
 }
 
 bool Game::buyFromShop(int slot)
+/*从商店购买单位：扣金币、创建单位放备战区、尝试升星合并*/
 {
     if (m_phase != GamePhase::Prep || m_result != GameResult::Playing) {
         return false;
@@ -976,6 +1000,7 @@ bool Game::buyFromShop(int slot)
 }
 
 bool Game::refreshShop()
+/*刷新商店：扣2金重新随机五个槽位*/
 {
     if (m_phase != GamePhase::Prep || m_result != GameResult::Playing) {
         return false;
@@ -991,6 +1016,7 @@ bool Game::refreshShop()
 }
 
 bool Game::upgradePopulation()
+/*升级人口上限：扣除递增金币，+1人口*/
 {
     if (m_phase != GamePhase::Prep || m_result != GameResult::Playing) {
         return false;
@@ -1005,6 +1031,7 @@ bool Game::upgradePopulation()
 }
 
 bool Game::equipFromBench(int equipSlot, int unitId)
+/*装备穿戴/卸下：单位有装备则卸下返还装备栏，无装备则从装备栏穿戴*/
 {
     if (m_phase != GamePhase::Prep) {
         return false;
@@ -1040,6 +1067,7 @@ bool Game::equipFromBench(int equipSlot, int unitId)
 }
 
 void Game::tryAutoMerge(Unit* acquired)
+/*检测升星：备战区+场上合计3个同名1星单位自动合成2星*/
 {
     if (!acquired || acquired->starLevel() != 1) {
         return;
@@ -1088,6 +1116,7 @@ void Game::tryAutoMerge(Unit* acquired)
 }
 
 void Game::tryDropEquipment(bool playerWon)
+/*战后装备掉落：胜利时45%概率随机掉落一件基础装备*/
 {
     if (!playerWon) {
         return;
@@ -1162,6 +1191,7 @@ QJsonObject Game::toJson() const
 }
 
 bool Game::saveToFile(const QString& path, QString* errorMessage) const
+/*保存游戏到JSON文件，包含金币/回合/单位/装备/商店状态*/
 {
     try {
         QFile file(path);
@@ -1188,6 +1218,7 @@ bool Game::saveToFile(const QString& path, QString* errorMessage) const
 }
 
 bool Game::loadFromFile(const QString& path, QString* errorMessage)
+/*从JSON文件读取存档，恢复完整游戏状态，异常时自动reset*/
 {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
