@@ -26,12 +26,12 @@ GameWindow::GameWindow(QWidget* parent)
     , m_phaseLabel(new QLabel(this))
     , m_synergyLabel(new QLabel(this))
     , m_unitInfoLabel(new QLabel(this))
-    , m_resetButton(new QPushButton(QStringLiteral("重置"), this))
-    , m_startCombatButton(new QPushButton(QStringLiteral("开始战斗"), this))
-    , m_refreshShopButton(new QPushButton(QStringLiteral("刷新商店(2金)"), this))
-    , m_upgradePopButton(new QPushButton(QStringLiteral("升级人口"), this))
-    , m_saveButton(new QPushButton(QStringLiteral("存档"), this))
-    , m_loadButton(new QPushButton(QStringLiteral("读档"), this))
+    , m_resetButton(new QPushButton(QStringLiteral("\u91CD\u7F6E"), this))
+    , m_startCombatButton(new QPushButton(QStringLiteral("\u5F00\u59CB\u6218\u6597"), this))
+    , m_refreshShopButton(new QPushButton(QStringLiteral("\u5237\u65B0\u5546\u5E97(2\u91D1)"), this))
+    , m_upgradePopButton(new QPushButton(QStringLiteral("\u5347\u7EA7\u4EBA\u53E3"), this))
+    , m_saveButton(new QPushButton(QStringLiteral("\u5B58\u6863"), this))
+    , m_loadButton(new QPushButton(QStringLiteral("\u8BFB\u6863"), this))
     , m_equipDropLabel(nullptr)
     , m_game(new Game(this))
 {
@@ -49,12 +49,14 @@ GameWindow::GameWindow(QWidget* parent)
 GameWindow::~GameWindow() = default;
 
 void GameWindow::onResetClicked()
+/*重置游戏*/
 {
     m_game->reset();
     refreshPanels();
 }
 
 void GameWindow::onStartCombatClicked()
+/*开始战斗：清除装备掉落提示、启动战斗、刷新面板*/
 {
     m_game->clearEquipDropMessage();
     m_game->startCombat();
@@ -62,21 +64,24 @@ void GameWindow::onStartCombatClicked()
 }
 
 void GameWindow::onRefreshShopClicked()
+/*刷新商店*/
 {
     m_game->refreshShop();
     refreshPanels();
 }
 
 void GameWindow::onUpgradePopClicked()
+/*升级人口上限*/
 {
     m_game->upgradePopulation();
     refreshPanels();
 }
 
 void GameWindow::onSaveClicked()
+/*弹出文件保存对话框，保存游戏到JSON*/
 {
     const QString path = QFileDialog::getSaveFileName(
-        this, QStringLiteral("保存游戏"), QStringLiteral("synera_save.json"),
+        this, QStringLiteral("\u4FDD\u5B58\u6E38\u620F"), QStringLiteral("synera_save.json"),
         QStringLiteral("JSON (*.json)"));
     if (path.isEmpty()) {
         return;
@@ -89,9 +94,10 @@ void GameWindow::onSaveClicked()
 }
 
 void GameWindow::onLoadClicked()
+/*弹出文件打开对话框，从JSON读取存档*/
 {
     const QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("读取存档"), QString(), QStringLiteral("JSON (*.json)"));
+        this, QStringLiteral("\u8BFB\u53D6\u5B58\u6863"), QString(), QStringLiteral("JSON (*.json)"));
     if (path.isEmpty()) {
         return;
     }
@@ -103,6 +109,7 @@ void GameWindow::onLoadClicked()
 }
 
 void GameWindow::onShopSlotClicked()
+/*商店购买：通过按钮属性获取槽位编号，调用Game购买*/
 {
     auto* btn = qobject_cast<QPushButton*>(sender());
     if (!btn) {
@@ -114,6 +121,7 @@ void GameWindow::onShopSlotClicked()
 }
 
 void GameWindow::onEquipSlotClicked()
+/*选中装备栏槽位，提示用户点击单位穿戴或卸下装备*/
 {
     auto* btn = qobject_cast<QPushButton*>(sender());
     if (!btn) {
@@ -121,11 +129,12 @@ void GameWindow::onEquipSlotClicked()
     }
     const int slot = btn->property("equipSlot").toInt();
     m_game->setSelectedEquipSlot(slot);
-    m_phaseLabel->setText(QStringLiteral("已选中装备栏，请点击要穿戴的我方单位。"));
+    m_phaseLabel->setText(QStringLiteral("\u5DF2\u9009\u4E2D\u88C5\u5907\u680F\uFF0C\u8BF7\u70B9\u51FB\u8981\u7A7F\u6234\u7684\u6211\u65B9\u5355\u4F4D\u3002"));
     refreshPanels();
 }
 
 void GameWindow::refreshShopButtons()
+/*刷新商店按钮：更新名称价格，已售出显示"已售"并禁用*/
 {
     const Shop& shop = m_game->shop();
     for (int i = 0; i < Shop::SLOT_COUNT; ++i) {
@@ -135,55 +144,56 @@ void GameWindow::refreshShopButtons()
         }
         const QString offer = shop.offerAt(i);
         if (offer.isEmpty()) {
-            btn->setText(QStringLiteral("已售"));
+            btn->setText(QStringLiteral("\u5DF2\u552E"));
             btn->setEnabled(false);
         } else {
-            btn->setText(QStringLiteral("%1 (%2金)").arg(offer).arg(shop.costAt(i)));
+            btn->setText(QStringLiteral("%1 (%2\u91D1)").arg(offer).arg(shop.costAt(i)));
             btn->setEnabled(m_game->phase() == GamePhase::Prep && m_game->result() == GameResult::Playing);
         }
     }
 }
 
 void GameWindow::refreshPanels()
+/*刷新全部面板：生命/金币/回合/人口/阶段/羁绊/商店/装备/选中单位信息*/
 {
     const Player* player = m_game->player();
-    m_hpLabel->setText(QStringLiteral("玩家生命: %1 / %2").arg(player->hp()).arg(player->maxHp()));
-    m_goldLabel->setText(QStringLiteral("金币: %1").arg(player->gold()));
+    m_hpLabel->setText(QStringLiteral("\u73A9\u5BB6\u751F\u547D: %1 / %2").arg(player->hp()).arg(player->maxHp()));
+    m_goldLabel->setText(QStringLiteral("\u91D1\u5E01: %1").arg(player->gold()));
     const QString st = player->streakText();
     const int interest = player->interestBonus();
     if (!st.isEmpty()) {
         m_goldLabel->setText(m_goldLabel->text() + QStringLiteral(" [%1]").arg(st));
     }
     if (interest > 0) {
-        m_goldLabel->setText(m_goldLabel->text() + QStringLiteral(" (利息+%1)").arg(interest));
+        m_goldLabel->setText(m_goldLabel->text() + QStringLiteral(" (\u5229\u606F+%1)").arg(interest));
     }
-    m_roundLabel->setText(QStringLiteral("回合: %1 / %2")
+    m_roundLabel->setText(QStringLiteral("\u56DE\u5408: %1 / %2")
                               .arg(player->currentRound())
                               .arg(CombatConst::kMaxRounds));
-    m_popLabel->setText(QStringLiteral("场上: %1 / %2 | 升级人口: %3金")
+    m_popLabel->setText(QStringLiteral("\u573A\u4E0A: %1 / %2 | \u5347\u7EA7\u4EBA\u53E3: %3\u91D1")
                             .arg(m_game->playerUnitsOnBoard())
                             .arg(player->populationCap())
                             .arg(player->populationUpgradeCost()));
 
     QString phaseName;
     switch (m_game->phase()) {
-    case GamePhase::Prep: phaseName = QStringLiteral("准备"); break;
-    case GamePhase::Combat: phaseName = QStringLiteral("战斗"); break;
-    case GamePhase::Resolve: phaseName = QStringLiteral("结算"); break;
+    case GamePhase::Prep: phaseName = QStringLiteral("\u51C6\u5907"); break;
+    case GamePhase::Combat: phaseName = QStringLiteral("\u6218\u6597"); break;
+    case GamePhase::Resolve: phaseName = QStringLiteral("\u7ED3\u7B97"); break;
     }
 
     QString resultText;
     switch (m_game->result()) {
     case GameResult::Playing: resultText = QString(); break;
-    case GameResult::Victory: resultText = QStringLiteral(" | 【通关】"); break;
-    case GameResult::Defeat: resultText = QStringLiteral(" | 【失败】"); break;
+    case GameResult::Victory: resultText = QStringLiteral(" | \u3010\u901A\u5173\u3011"); break;
+    case GameResult::Defeat: resultText = QStringLiteral(" | \u3010\u5931\u8D25\u3011"); break;
     }
 
-    m_phaseLabel->setText(QStringLiteral("阶段: %1%2 | %3")
+    m_phaseLabel->setText(QStringLiteral("\u9636\u6BB5: %1%2 | %3")
                               .arg(phaseName)
                               .arg(resultText)
                               .arg(m_game->phaseMessage()));
-    m_synergyLabel->setText(QStringLiteral("羁绊: %1").arg(m_game->synergySummary()));
+    m_synergyLabel->setText(QStringLiteral("\u7F81\u7ECA: %1").arg(m_game->synergySummary()));
 
     refreshShopButtons();
     for (int i = 0; i < 6; ++i) {
@@ -208,18 +218,18 @@ void GameWindow::refreshPanels()
 
     const Unit* unit = m_game->selectedUnit();
     if (!unit) {
-        m_unitInfoLabel->setText(QStringLiteral("点击商店购买；点击装备再点单位穿戴；拖拽布阵后开战。"));
+        m_unitInfoLabel->setText(QStringLiteral("\u70B9\u51FB\u5546\u5E97\u8D2D\u4E70\uFF1B\u70B9\u51FB\u88C5\u5907\u518D\u70B9\u5355\u4F4D\u7A7F\u6234\uFF1B\u62D6\u62FD\u5E03\u9635\u540E\u5F00\u6218\u3002"));
         return;
     }
 
     const QString ownerText = unit->owner() == Controller::PlayerCtrl
-        ? QStringLiteral("我方") : QStringLiteral("敌方");
+        ? QStringLiteral("\u6211\u65B9") : QStringLiteral("\u654C\u65B9");
     const QString traits = unit->traits().isEmpty()
-        ? QStringLiteral("无")
+        ? QStringLiteral("\u65E0")
         : QStringList(unit->traits().begin(), unit->traits().end()).join(QStringLiteral(", "));
 
     m_unitInfoLabel->setText(
-        QStringLiteral("%1 [%2] %3 | HP %4/%5 | ATK %6 | 射程 %7 | 法力 %8/%9 | 装备: %10 | 状态: %11 | 羁绊: %12")
+        QStringLiteral("%1 [%2] %3 | HP %4/%5 | ATK %6 | \u5C04\u7A0B %7 | \u6CD5\u529B %8/%9 | \u88C5\u5907: %10 | \u72B6\u6001: %11 | \u7F81\u7ECA: %12")
             .arg(unit->displayName())
             .arg(ownerText)
             .arg(unit->heroType())
@@ -235,6 +245,7 @@ void GameWindow::refreshPanels()
 }
 
 void GameWindow::updateButtons()
+/*根据当前阶段和结果启用/禁用按钮*/
 {
     const bool playing = m_game->result() == GameResult::Playing;
     const bool prep = m_game->phase() == GamePhase::Prep;
@@ -247,6 +258,7 @@ void GameWindow::updateButtons()
 }
 
 void GameWindow::setupUI()
+/*构建主窗口布局：顶部状态栏→阶段/羁绊标签→商店栏→装备栏→棋盘视图→底部单位信息*/
 {
     setWindowTitle(QStringLiteral("Synera - Starter"));
     resize(1000, 960);
@@ -287,7 +299,7 @@ void GameWindow::setupUI()
 
     QWidget* shopBar = new QWidget(this);
     QHBoxLayout* shopLayout = new QHBoxLayout(shopBar);
-    shopLayout->addWidget(new QLabel(QStringLiteral("商店:"), this));
+    shopLayout->addWidget(new QLabel(QStringLiteral("\u5546\u5E97:"), this));
     for (int i = 0; i < Shop::SLOT_COUNT; ++i) {
         m_shopButtons[i] = new QPushButton(QStringLiteral("?"), this);
         m_shopButtons[i]->setProperty("shopSlot", i);
@@ -298,7 +310,7 @@ void GameWindow::setupUI()
 
     QWidget* equipBar = new QWidget(this);
     QHBoxLayout* equipLayout = new QHBoxLayout(equipBar);
-    equipLayout->addWidget(new QLabel(QStringLiteral("装备栏:"), this));
+    equipLayout->addWidget(new QLabel(QStringLiteral("\u88C5\u5907\u680F:"), this));
     for (int i = 0; i < 6; ++i) {
         m_equipButtons[i] = new QPushButton(QStringLiteral("\u7A7A"), this);
         m_equipButtons[i]->setProperty("equipSlot", i);

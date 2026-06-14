@@ -67,7 +67,7 @@ void Unit::setMaxMana(int maxMana)
 }
 
 void Unit::setStarLevel(int level)
-/*设置星阶，钳位在[1,3]*/
+/*设置星阶，钳位在[1,3]，现在只实现了2*/
 {
     m_starLevel = qBound(1, level, 3);
 }

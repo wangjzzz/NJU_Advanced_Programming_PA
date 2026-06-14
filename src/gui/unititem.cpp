@@ -18,11 +18,13 @@ UnitItem::UnitItem(Unit* unit, QGraphicsItem* parent)
 }
 
 QRectF UnitItem::boundingRect() const
+/*返回单位图元的占用矩形区域*/
 {
     return QRectF(-44, -44, 88, 88);
 }
 
 void UnitItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
+/*绘制单位：精灵图/占位圆→羁绊光环→星级→BOSS标签→受击闪白→SKILL弹字→血条蓝条*/
 {
     painter->setRenderHint(QPainter::Antialiasing);
     ensureSpriteLoaded();
@@ -34,13 +36,13 @@ void UnitItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
         if (m_unit) {
             if (m_unit->owner() == Controller::EnemyCtrl) {
                 fill = QColor(180, 80, 80);
-            } else if (m_unit->hasTrait(QStringLiteral("战士"))) {
+            } else if (m_unit->hasTrait(QStringLiteral("\u6218\u58EB"))) {
                 fill = QColor(200, 110, 90);
-            } else if (m_unit->hasTrait(QStringLiteral("法师"))) {
+            } else if (m_unit->hasTrait(QStringLiteral("\u6CD5\u5E08"))) {
                 fill = QColor(100, 120, 210);
-            } else if (m_unit->hasTrait(QStringLiteral("游侠"))) {
+            } else if (m_unit->hasTrait(QStringLiteral("\u6E38\u4FA0"))) {
                 fill = QColor(100, 190, 120);
-            } else if (m_unit->hasTrait(QStringLiteral("辅助"))) {
+            } else if (m_unit->hasTrait(QStringLiteral("\u8F85\u52A9"))) {
                 fill = QColor(210, 210, 130);
             }
         }
@@ -132,6 +134,7 @@ void UnitItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget
 }
 
 void UnitItem::drawStatBars(QPainter* painter) const
+/*绘制单位底部的血条（绿/红）和蓝条（蓝色）*/
 {
     if (!m_unit || m_unit->maxHp() <= 0) {
         return;
@@ -163,6 +166,7 @@ void UnitItem::drawStatBars(QPainter* painter) const
 }
 
 void UnitItem::ensureSpriteLoaded() const
+/*懒加载精灵图：按名称映射路径→兜底用craftpix素材→都失败则用占位圆*/
 {
     if (m_spriteTried) {
         return;
@@ -191,6 +195,7 @@ void UnitItem::ensureSpriteLoaded() const
 }
 
 bool UnitItem::tryLoadFallbackSprite(const QString& root) const
+/*尝试从craftpix素材目录加载精灵图作为兜底*/
 {
     if (!m_unit) {
         return false;
@@ -206,10 +211,10 @@ bool UnitItem::tryLoadFallbackSprite(const QString& root) const
         path = kReaperBase.arg(3);
     } else {
         const QString name = m_unit->name();
-        if (name == QStringLiteral("战士"))       path = kReaperBase.arg(1);
-        else if (name == QStringLiteral("牧师"))   path = kReaperBase.arg(2);
-        else if (name == QStringLiteral("弓手"))   path = kSatyrBase.arg(QStringLiteral("01")).arg(QStringLiteral("01"));
-        else if (name == QStringLiteral("法师"))   path = kSatyrBase.arg(QStringLiteral("02")).arg(QStringLiteral("02"));
+        if (name == QStringLiteral("\u6218\u58EB"))       path = kReaperBase.arg(1);
+        else if (name == QStringLiteral("\u7267\u5E08"))   path = kReaperBase.arg(2);
+        else if (name == QStringLiteral("\u5F13\u624B"))   path = kSatyrBase.arg(QStringLiteral("01")).arg(QStringLiteral("01"));
+        else if (name == QStringLiteral("\u6CD5\u5E08"))   path = kSatyrBase.arg(QStringLiteral("02")).arg(QStringLiteral("02"));
         else                                       path = kReaperBase.arg(1);
     }
 
@@ -222,6 +227,7 @@ bool UnitItem::tryLoadFallbackSprite(const QString& root) const
 }
 
 QString UnitItem::spriteRelativePathForUnit() const
+/*根据单位名称返回assets/textures下的PNG路径*/
 {
     if (!m_unit) {
         return QString();
@@ -231,15 +237,15 @@ QString UnitItem::spriteRelativePathForUnit() const
     if (m_unit->owner() == Controller::EnemyCtrl) {
         const QString name = m_unit->name();
         if (m_unit->isBoss()) filename = "boss.png";
-        else if (name == "骷髅") filename = "skeleton.png";
-        else if (name == "幽灵") filename = "ghost.png";
-        else if (name == "恶魔") filename = "demon.png";
+        else if (name == "\u9AB7\u9AC5") filename = "skeleton.png";
+        else if (name == "\u5E7D\u7075") filename = "ghost.png";
+        else if (name == "\u6076\u9B54") filename = "demon.png";
     } else {
         const QString name = m_unit->name();
-        if (name == QStringLiteral("战士"))       filename = QStringLiteral("warrior.png");
-        else if (name == QStringLiteral("牧师"))   filename = QStringLiteral("healer.png");
-        else if (name == QStringLiteral("弓手"))   filename = QStringLiteral("archer.png");
-        else if (name == QStringLiteral("法师"))   filename = QStringLiteral("mage.png");
+        if (name == QStringLiteral("\u6218\u58EB"))       filename = QStringLiteral("warrior.png");
+        else if (name == QStringLiteral("\u7267\u5E08"))   filename = QStringLiteral("healer.png");
+        else if (name == QStringLiteral("\u5F13\u624B"))   filename = QStringLiteral("archer.png");
+        else if (name == QStringLiteral("\u6CD5\u5E08"))   filename = QStringLiteral("mage.png");
         else                                       filename = QStringLiteral("warrior.png");
     }
 
@@ -247,17 +253,20 @@ QString UnitItem::spriteRelativePathForUnit() const
 }
 
 int UnitItem::unitId() const
+/*返回关联Unit的id，不存在返回-1*/
 {
     return m_unit ? m_unit->id() : -1;
 }
 
 void UnitItem::setGridPos(const QPoint& gridPos)
+/*设置棋盘位置并清除备战区标记*/
 {
     m_gridPos = gridPos;
     m_benchSlot = -1;
 }
 
 void UnitItem::setBenchSlot(int slot)
+/*设置备战区槽位并清除棋盘标记*/
 {
     m_benchSlot = slot;
     if (slot >= 0) {
@@ -266,6 +275,7 @@ void UnitItem::setBenchSlot(int slot)
 }
 
 void UnitItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
+/*鼠标按下：右键发射rightClicked出售，左键记录按下状态准备拖拽或点击*/
 {
     if (event->button() == Qt::RightButton) {
         event->accept();
@@ -285,6 +295,7 @@ void UnitItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
 }
 
 void UnitItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
+/*鼠标移动：超过6像素阈值后开始拖拽并发射dragStarted信号，持续发射dragMoved*/
 {
     if (!m_pressed) {
         QGraphicsObject::mousePressEvent(event);
@@ -305,6 +316,7 @@ void UnitItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
 }
 
 void UnitItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
+/*鼠标释放：正在拖拽则发射dragDropped，短按则发射clicked*/
 {
     if (event->button() != Qt::LeftButton) {
         QGraphicsObject::mousePressEvent(event);

@@ -14,11 +14,13 @@ BenchSlotItem::BenchSlotItem(int slot, const QRectF& rect, QGraphicsItem* parent
 }
 
 QRectF BenchSlotItem::boundingRect() const
+/*返回图元占用的矩形区域*/
 {
     return m_rect;
 }
 
 void BenchSlotItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
+/*绘制备战区槽位：圆角矩形 + 槽位编号文字，可落子时绿色、悬停时亮色*/
 {
     QColor fill(45, 48, 58);
     QColor border(75, 80, 95);
@@ -38,10 +40,11 @@ void BenchSlotItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QW
     QFont font = painter->font();
     font.setPointSize(9);
     painter->setFont(font);
-    painter->drawText(m_rect, Qt::AlignCenter, QStringLiteral("备%1").arg(m_slot + 1));
+    painter->drawText(m_rect, Qt::AlignCenter, QStringLiteral("\u5907%1").arg(m_slot + 1));
 }
 
 void BenchSlotItem::setHoverActive(bool active)
+/*设置拖拽悬停高亮状态并触发重绘*/
 {
     if (m_hoverActive != active) {
         m_hoverActive = active;
@@ -50,6 +53,7 @@ void BenchSlotItem::setHoverActive(bool active)
 }
 
 void BenchSlotItem::setDropActive(bool active)
+/*设置可落子高亮状态（绿色标记）并触发重绘*/
 {
     if (m_dropActive != active) {
         m_dropActive = active;
@@ -58,6 +62,7 @@ void BenchSlotItem::setDropActive(bool active)
 }
 
 void BenchSlotItem::hoverEnterEvent(QGraphicsSceneHoverEvent* event)
+/*鼠标进入槽位时记录悬停状态并重绘*/
 {
     Q_UNUSED(event);
     m_pointerHover = true;
@@ -65,6 +70,7 @@ void BenchSlotItem::hoverEnterEvent(QGraphicsSceneHoverEvent* event)
 }
 
 void BenchSlotItem::hoverLeaveEvent(QGraphicsSceneHoverEvent* event)
+/*鼠标离开槽位时清除悬停状态并重绘*/
 {
     Q_UNUSED(event);
     m_pointerHover = false;

@@ -1,90 +1,33 @@
 {
     "equips": [
-        1,
-        4,
-        1,
-        3
+        4
     ],
-    "gold": 24,
-    "hp": 100,
+    "gold": 45,
+    "hp": 80,
     "popCap": 5,
     "popUpgrades": 1,
     "result": 0,
-    "round": 8,
+    "round": 5,
     "shopCosts": [
-        3,
+        5,
+        0,
         4,
-        5,
-        5,
+        0,
         4
     ],
     "shopOffers": [
-        "战士",
-        "弓手",
         "法师",
-        "法师",
-        "牧师"
+        "",
+        "牧师",
+        "",
+        "弓手"
     ],
     "units": [
-        {
-            "bx": 1,
-            "by": 7,
-            "equip": 0,
-            "hp": 540,
-            "name": "牧师",
-            "star": 2,
-            "traits": [
-                "辅助"
-            ]
-        },
-        {
-            "bx": 1,
-            "by": 6,
-            "equip": 1,
-            "hp": 576,
-            "name": "弓手",
-            "star": 2,
-            "traits": [
-                "游侠"
-            ]
-        },
-        {
-            "bx": 2,
-            "by": 6,
-            "equip": 3,
-            "hp": 576,
-            "name": "弓手",
-            "star": 2,
-            "traits": [
-                "游侠"
-            ]
-        },
-        {
-            "bx": 0,
-            "by": 6,
-            "equip": 0,
-            "hp": 576,
-            "name": "弓手",
-            "star": 2,
-            "traits": [
-                "游侠"
-            ]
-        },
         {
             "bx": 2,
             "by": 5,
             "equip": 0,
-            "hp": 810,
-            "name": "战士",
-            "star": 2,
-            "traits": [
-                "战士"
-            ]
-        },
-        {
-            "bench": 0,
-            "equip": 0,
-            "hp": 450,
+            "hp": 530,
             "name": "战士",
             "star": 1,
             "traits": [
@@ -92,9 +35,10 @@
             ]
         },
         {
-            "bench": 1,
+            "bx": 3,
+            "by": 5,
             "equip": 0,
-            "hp": 450,
+            "hp": 530,
             "name": "战士",
             "star": 1,
             "traits": [

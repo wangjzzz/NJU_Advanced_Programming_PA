@@ -14,12 +14,14 @@ OverlayItem::OverlayItem(const QRectF& rect, const QString& title,
 }
 
 QRectF OverlayItem::boundingRect() const
+/*返回浮层占用的矩形区域*/
 {
     return m_rect;
 }
 
 void OverlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
                         QWidget*)
+/*绘制战斗结果浮层：半透明黑底→深色卡片→标题→副文本→底部"点击继续"提示*/
 {
     painter->setPen(Qt::NoPen);
     painter->setBrush(QColor(0, 0, 0, 180));
@@ -59,6 +61,7 @@ void OverlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
 }
 
 void OverlayItem::mousePressEvent(QGraphicsSceneMouseEvent* event)
+/*点击任意位置发射dismissed信号，由Game移除浮层*/
 {
     if (event->button() == Qt::LeftButton) {
         event->accept();
